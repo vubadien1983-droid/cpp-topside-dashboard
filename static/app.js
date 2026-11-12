@@ -28,6 +28,10 @@
     data: window.PMS_INITIAL_DATA || null,
     activeTab: "punchlist", // 'punchlist' or 'checksheet'
     deviceMode: window.innerWidth < 768 ? "phone" : "laptop",
+    colMode: {
+      punchlist: "auto", // 'auto' (content auto-fit by default) or 'custom'
+      checksheet: "custom",
+    },
     colWidths: {
       punchlist: loadColWidths("punchlist", DEFAULT_PL_COL_WIDTHS),
       checksheet: loadColWidths("checksheet", DEFAULT_CS_COL_WIDTHS),
@@ -81,16 +85,35 @@
     return typeof v === "number" ? pool[v] || "" : (v || "");
   }
 
-  window.resetColWidths = function (key) {
-    if (key === "punchlist") {
-      state.colWidths.punchlist = [...DEFAULT_PL_COL_WIDTHS];
-      saveColWidths("punchlist", state.colWidths.punchlist);
+  window.toggleAutoFit = function (key) {
+    if (state.colMode[key] === "auto") {
+      state.colMode[key] = "custom";
+      showToast(`${key === "punchlist" ? "Punchlist" : "Checksheet"} column widths fixed.`, "info");
     } else {
-      state.colWidths.checksheet = [...DEFAULT_CS_COL_WIDTHS];
-      saveColWidths("checksheet", state.colWidths.checksheet);
+      state.colMode[key] = "auto";
+      if (key === "punchlist") {
+        localStorage.removeItem("CPP_PUNCHLIST_COL_WIDTHS");
+        state.colWidths.punchlist = [...DEFAULT_PL_COL_WIDTHS];
+      } else {
+        localStorage.removeItem("CPP_CHECKSHEET_COL_WIDTHS");
+        state.colWidths.checksheet = [...DEFAULT_CS_COL_WIDTHS];
+      }
+      showToast(`${key === "punchlist" ? "Punchlist" : "Checksheet"} set to Auto-fit column content!`, "success");
     }
     renderTabContent();
-    showToast("Restored default column widths!", "info");
+  };
+
+  window.resetColWidths = function (key) {
+    state.colMode[key] = "auto";
+    if (key === "punchlist") {
+      localStorage.removeItem("CPP_PUNCHLIST_COL_WIDTHS");
+      state.colWidths.punchlist = [...DEFAULT_PL_COL_WIDTHS];
+    } else {
+      localStorage.removeItem("CPP_CHECKSHEET_COL_WIDTHS");
+      state.colWidths.checksheet = [...DEFAULT_CS_COL_WIDTHS];
+    }
+    renderTabContent();
+    showToast("Restored Auto-fit column widths!", "info");
   };
 
   function initColumnResizers(tableId, tabKey) {
@@ -104,19 +127,35 @@
         e.stopPropagation();
 
         const colIndex = parseInt(resizer.getAttribute("data-col-index"), 10);
-        const colEl = table.querySelector(`colgroup col:nth-child(${colIndex + 1})`);
-        if (!colEl) return;
 
+        if (state.colMode[tabKey] === "auto") {
+          state.colMode[tabKey] = "custom";
+          const ths = table.querySelectorAll("thead th");
+          const measuredWidths = Array.from(ths).map((th) => Math.max(35, th.offsetWidth));
+          state.colWidths[tabKey] = measuredWidths;
+          table.style.tableLayout = "fixed";
+          let cg = table.querySelector("colgroup");
+          if (!cg) {
+            cg = document.createElement("colgroup");
+            table.insertBefore(cg, table.firstChild);
+          }
+          cg.innerHTML = measuredWidths.map((w) => `<col style="width: ${w}px;">`).join("");
+        }
+
+        const colEl = table.querySelector(`colgroup col:nth-child(${colIndex + 1})`);
+        const thEl = table.querySelector(`thead th:nth-child(${colIndex + 1})`);
+        const startWidth = colEl ? colEl.offsetWidth : (thEl ? thEl.offsetWidth : 80);
         const startX = e.pageX;
         const currentWidths = state.colWidths[tabKey];
-        const startWidth = colEl.offsetWidth || currentWidths[colIndex] || 80;
+
         resizer.classList.add("is-resizing");
         document.body.classList.add("resizing-columns");
 
         function onMouseMove(moveEv) {
           const delta = moveEv.pageX - startX;
-          const newWidth = Math.max(30, startWidth + delta);
-          colEl.style.width = `${newWidth}px`;
+          const newWidth = Math.max(35, startWidth + delta);
+          if (colEl) colEl.style.width = `${newWidth}px`;
+          if (thEl) thEl.style.width = `${newWidth}px`;
           currentWidths[colIndex] = newWidth;
         }
 
@@ -216,11 +255,40 @@
     const bar = document.getElementById("multi-tab-bar");
     if (!bar || !state.data) return;
 
-    const plCount = state.data.meta.punchlist_count || state.data.punchlist.rows.length;
-    const csCount = state.data.meta.checksheet_count || state.data.checksheet.rows.length;
+    const totalPl = state.data.punchlist.rows.length;
+    const filteredPl = getFilteredPunchlist();
+    const plCount = filteredPl.length;
+    const isPlFiltered = plCount !== totalPl;
+
+    const totalCs = state.data.checksheet.rows.length;
+    const filteredCs = getFilteredChecksheets();
+    const csCount = filteredCs.length;
+    const isCsFiltered = csCount !== totalCs;
 
     const isPl = state.activeTab === "punchlist";
     const isCs = state.activeTab === "checksheet";
+
+    const allSubs = Object.keys(state.data.subsystems || {});
+    const totalSubsCount = allSubs.length;
+
+    let activeSubsCount = totalSubsCount;
+    if (isPl && isPlFiltered) {
+      const sSet = new Set();
+      filteredPl.forEach((r) => {
+        const s = state.data.punchlist.pool[r[1]];
+        if (s) sSet.add(s);
+      });
+      activeSubsCount = sSet.size;
+    } else if (isCs && isCsFiltered) {
+      const sSet = new Set();
+      filteredCs.forEach((r) => {
+        const s = state.data.checksheet.pool[r[1]];
+        if (s) sSet.add(s);
+      });
+      activeSubsCount = sSet.size;
+    }
+
+    const currentTabFiltered = (isPl && isPlFiltered) || (isCs && isCsFiltered);
 
     bar.innerHTML = `
       <div class="flex items-center gap-2">
@@ -234,10 +302,14 @@
         >
           <i class="fas fa-clipboard-list text-sm"></i>
           <span>1. Punchlist Overview</span>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${
-            isPl ? "bg-white/20 text-white" : "bg-slate-700 text-slate-300"
-          }">
-            ${plCount.toLocaleString()}
+          <span id="tab-pl-badge" class="px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
+            isPlFiltered
+              ? "bg-amber-400 text-slate-900 shadow-sm ring-1 ring-amber-300"
+              : isPl
+              ? "bg-white/20 text-white"
+              : "bg-slate-700 text-slate-300"
+          }" title="${isPlFiltered ? `Filtered: ${plCount.toLocaleString()} of ${totalPl.toLocaleString()} items` : `Total: ${totalPl.toLocaleString()} items`}">
+            ${isPlFiltered ? `${plCount.toLocaleString()} / ${totalPl.toLocaleString()}` : totalPl.toLocaleString()}
           </span>
         </button>
 
@@ -251,10 +323,14 @@
         >
           <i class="fas fa-tasks text-sm"></i>
           <span>2. Checksheet Overview</span>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${
-            isCs ? "bg-white/20 text-white" : "bg-slate-700 text-slate-300"
-          }">
-            ${csCount.toLocaleString()}
+          <span id="tab-cs-badge" class="px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
+            isCsFiltered
+              ? "bg-amber-400 text-slate-900 shadow-sm ring-1 ring-amber-300"
+              : isCs
+              ? "bg-white/20 text-white"
+              : "bg-slate-700 text-slate-300"
+          }" title="${isCsFiltered ? `Filtered: ${csCount.toLocaleString()} of ${totalCs.toLocaleString()} items` : `Total: ${totalCs.toLocaleString()} items`}">
+            ${isCsFiltered ? `${csCount.toLocaleString()} / ${totalCs.toLocaleString()}` : totalCs.toLocaleString()}
           </span>
         </button>
       </div>
@@ -262,7 +338,9 @@
       <div class="hidden md:flex items-center gap-2 text-xs text-slate-400 pr-2">
         <span class="inline-flex items-center gap-1.5"><i class="fas fa-server text-blue-400"></i> CPP TOPSIDE</span>
         <span>•</span>
-        <span>${Object.keys(state.data.subsystems || {}).length} SubSystems</span>
+        <span id="header-subs-summary" class="${currentTabFiltered ? "text-amber-300 font-bold" : ""}">
+          ${currentTabFiltered ? `${activeSubsCount} / ${totalSubsCount} SubSystems (Filtered)` : `${totalSubsCount} SubSystems`}
+        </span>
       </div>
     `;
   }
@@ -359,33 +437,33 @@
 
         return `
           <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors h-10">
-            <td class="py-2 px-2 text-center text-slate-400 font-mono whitespace-nowrap overflow-hidden">${startIdx + idx + 1}</td>
-            <td class="py-2 px-2 font-extrabold text-blue-700 font-mono whitespace-nowrap overflow-hidden truncate">
-              <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left truncate" title="${esc(plNo)}">
+            <td class="py-2 px-3 text-center text-slate-400 font-mono whitespace-nowrap">${startIdx + idx + 1}</td>
+            <td class="py-2 px-3 font-extrabold text-blue-700 font-mono whitespace-nowrap">
+              <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left" title="${esc(plNo)}">
                 ${esc(plNo)}
               </button>
             </td>
-            <td class="py-2 px-2 font-semibold text-slate-800 font-mono whitespace-nowrap overflow-hidden truncate">
-              <button onclick="setPlFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600 truncate" title="${esc(subNo)}">
+            <td class="py-2 px-3 font-semibold text-slate-800 font-mono whitespace-nowrap">
+              <button onclick="setPlFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600" title="${esc(subNo)}">
                 ${esc(subNo)}
               </button>
             </td>
-            <td class="py-2 px-2 font-mono font-bold text-slate-900 whitespace-nowrap overflow-hidden truncate">
-              <button onclick="setPlFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600 truncate" title="${esc(tagNo)}">
+            <td class="py-2 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+              <button onclick="setPlFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600" title="${esc(tagNo)}">
                 ${esc(tagNo)}
               </button>
             </td>
-            <td class="py-2 px-2 text-slate-600 whitespace-nowrap overflow-hidden truncate" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
-            <td class="py-2 px-1 text-center whitespace-nowrap overflow-hidden">
+            <td class="py-2 px-3 text-slate-600 whitespace-nowrap max-w-xs md:max-w-sm truncate" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
+            <td class="py-2 px-2 text-center whitespace-nowrap">
               <span class="px-2 py-0.5 rounded font-black text-[10px] border ${catBadge}">${esc(cat)}</span>
             </td>
-            <td class="py-2 px-1 text-center whitespace-nowrap overflow-hidden">
+            <td class="py-2 px-2 text-center whitespace-nowrap">
               <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">${esc(status)}</span>
             </td>
-            <td class="py-2 px-2 text-slate-700 font-medium whitespace-nowrap overflow-hidden truncate" title="${esc(disc)}">${esc(disc)}</td>
-            <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(defect)}">${esc(defect)}</td>
-            <td class="py-2 px-2 text-slate-600 font-mono text-[11px] whitespace-nowrap overflow-hidden truncate">${esc(targetDate)}</td>
-            <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(corrective)}">
+            <td class="py-2 px-3 text-slate-700 font-medium whitespace-nowrap" title="${esc(disc)}">${esc(disc)}</td>
+            <td class="py-2 px-4 text-slate-800 whitespace-nowrap max-w-md lg:max-w-xl xl:max-w-2xl truncate font-sans text-xs" title="${esc(defect)}">${esc(defect)}</td>
+            <td class="py-2 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap">${esc(targetDate)}</td>
+            <td class="py-2 px-4 text-emerald-700 whitespace-nowrap max-w-sm lg:max-w-lg xl:max-w-xl truncate font-sans text-xs" title="${esc(corrective)}">
               <button
                 onclick="viewPunchDetail('${esc(plNo)}')"
                 class="hover:text-blue-600 hover:underline text-left truncate w-full"
@@ -400,6 +478,49 @@
       .join("");
   }
 
+  function updatePlKpiCards(filtered, totalAll) {
+    const pool = state.data.punchlist.pool;
+    let catA = 0, catB = 0, catC = 0, open = 0, closed = 0;
+    filtered.forEach((r) => {
+      const c = r[8];
+      if (c === "A") catA++;
+      else if (c === "B") catB++;
+      else if (c === "C" || c === "c") catC++;
+
+      const st = pool[r[9]] || "";
+      if (st === "Closed") closed++;
+      else open++;
+    });
+
+    const total = filtered.length;
+    const pctClosed = total > 0 ? ((closed / total) * 100).toFixed(1) : "0.0";
+    const isFiltered = total !== totalAll;
+
+    const setEl = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setEl("pl-kpi-total", total.toLocaleString());
+    setEl("pl-kpi-total-sub", isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} items` : "Total Punchlist Registry");
+    setEl("pl-kpi-catA", catA.toLocaleString());
+    setEl("pl-kpi-catB", catB.toLocaleString());
+    setEl("pl-kpi-catC", catC.toLocaleString());
+    setEl("pl-kpi-open", open.toLocaleString());
+    setEl("pl-kpi-closed", closed.toLocaleString());
+    setEl("pl-kpi-pctClosed", `${pctClosed}%`);
+    const cBar = document.getElementById("pl-kpi-closed-bar");
+    if (cBar) cBar.style.width = `${pctClosed}%`;
+
+    setEl("pl-btn-catAll-count", `All Cats (${total.toLocaleString()})`);
+    setEl("pl-btn-catA-count", `Cat A (${catA.toLocaleString()})`);
+    setEl("pl-btn-catB-count", `Cat B (${catB.toLocaleString()})`);
+    setEl("pl-btn-catC-count", `Cat C (${catC.toLocaleString()})`);
+    setEl("pl-btn-statusAll-count", `All Status (${total.toLocaleString()})`);
+    setEl("pl-btn-open-count", `Open (${open.toLocaleString()})`);
+    setEl("pl-btn-closed-count", `Closed (${closed.toLocaleString()})`);
+  }
+
   function renderPlTableOnly() {
     const tbody = document.getElementById("punchlist-tbody");
     if (!tbody) {
@@ -408,7 +529,7 @@
     }
     const filtered = getFilteredPunchlist();
     const f = state.filters.punchlist;
-    const total = state.data.punchlist.rows.length;
+    const totalAll = state.data.punchlist.rows.length;
     const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
     if (f.page > totalPages) f.page = totalPages;
     const startIdx = (f.page - 1) * f.pageSize;
@@ -423,7 +544,7 @@
 
     const kpiBadge = document.getElementById("pl-kpi-filter-badge");
     if (kpiBadge) {
-      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} items`;
+      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${totalAll.toLocaleString()} items`;
     }
 
     const pageLabel = document.getElementById("pl-page-label");
@@ -439,6 +560,9 @@
     if (nextBtn) {
       nextBtn.disabled = f.page >= totalPages;
     }
+
+    updatePlKpiCards(filtered, totalAll);
+    renderTabBar();
   }
 
   function renderPunchlistTab(container) {
@@ -447,12 +571,13 @@
     const filtered = getFilteredPunchlist();
     const f = state.filters.punchlist;
 
-    // Compute KPIs
-    let total = allRows.length, catA = 0, catB = 0, catC = 0, open = 0, closed = 0;
-    const discSet = new Set();
-    const subSet = new Set();
+    // Compute KPIs FROM FILTERED DATA
+    const totalAll = allRows.length;
+    const total = filtered.length;
+    const isFiltered = total !== totalAll;
 
-    allRows.forEach((r) => {
+    let catA = 0, catB = 0, catC = 0, open = 0, closed = 0;
+    filtered.forEach((r) => {
       const c = r[8];
       if (c === "A") catA++;
       else if (c === "B") catB++;
@@ -461,22 +586,23 @@
       const st = pool[r[9]] || "";
       if (st === "Closed") closed++;
       else open++;
-
-      const d = pool[r[15]] || "";
-      if (d) discSet.add(d);
-
-      const s = pool[r[1]] || "";
-      if (s) subSet.add(s);
     });
 
-    const pctClosed = total > 0 ? ((closed / total) * 100).toFixed(1) : 0;
+    const pctClosed = total > 0 ? ((closed / total) * 100).toFixed(1) : "0.0";
 
-    // Subsystem options
-    const sortedSubs = Array.from(subSet).sort();
+    // All available subsystems and disciplines for dropdown options
+    const allSubSet = new Set();
+    const allDiscSet = new Set();
+    allRows.forEach((r) => {
+      const d = pool[r[15]] || "";
+      if (d) allDiscSet.add(d);
+      const s = pool[r[1]] || "";
+      if (s) allSubSet.add(s);
+    });
+
+    const sortedSubs = Array.from(allSubSet).sort();
     const subDescMap = state.data.subsystems || {};
-
-    // Disciplines options
-    const sortedDiscs = Array.from(discSet).sort();
+    const sortedDiscs = Array.from(allDiscSet).sort();
 
     // Pagination
     const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
@@ -485,30 +611,30 @@
     const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
 
     container.innerHTML = `
-      <!-- 1. KPI Cards Row -->
+      <!-- 1. KPI Cards Row (Dynamically Summarizes Filtered Data) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <!-- Total Punch -->
         <div onclick="setPlFilter('status','ALL')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Punch</p>
-              <h3 class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
+              <h3 id="pl-kpi-total" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-clipboard-list"></i>
             </div>
           </div>
-          <p class="text-[10px] text-slate-500 mt-2">Total Punchlist Registry</p>
+          <p id="pl-kpi-total-sub" class="text-[10px] text-slate-500 mt-2">${isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} items` : "Total Punchlist Registry"}</p>
         </div>
 
         <!-- Cat A -->
         <div onclick="setPlFilter('category','A')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-rose-200 shadow-sm hover:shadow-md hover:border-rose-400 transition-all ${
-          f.category === "A" ? "ring-2 ring-rose-500" : ""
+          f.category === "A" ? "ring-2 ring-rose-500 bg-rose-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Category A</p>
-              <h3 class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${catA.toLocaleString()}</h3>
+              <h3 id="pl-kpi-catA" class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${catA.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-skull-crossbones"></i>
@@ -519,12 +645,12 @@
 
         <!-- Cat B -->
         <div onclick="setPlFilter('category','B')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-400 transition-all ${
-          f.category === "B" ? "ring-2 ring-amber-500" : ""
+          f.category === "B" ? "ring-2 ring-amber-500 bg-amber-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-amber-700">Category B</p>
-              <h3 class="text-xl sm:text-2xl font-black text-amber-600 mt-1">${catB.toLocaleString()}</h3>
+              <h3 id="pl-kpi-catB" class="text-xl sm:text-2xl font-black text-amber-600 mt-1">${catB.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-triangle-exclamation"></i>
@@ -535,12 +661,12 @@
 
         <!-- Cat C -->
         <div onclick="setPlFilter('category','C')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-blue-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all ${
-          f.category === "C" ? "ring-2 ring-blue-500" : ""
+          f.category === "C" ? "ring-2 ring-blue-500 bg-blue-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-blue-700">Category C</p>
-              <h3 class="text-xl sm:text-2xl font-black text-blue-600 mt-1">${catC.toLocaleString()}</h3>
+              <h3 id="pl-kpi-catC" class="text-xl sm:text-2xl font-black text-blue-600 mt-1">${catC.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-circle-info"></i>
@@ -551,12 +677,12 @@
 
         <!-- Open Items -->
         <div onclick="setPlFilter('status','Open')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-orange-200 shadow-sm hover:shadow-md hover:border-orange-400 transition-all ${
-          f.status === "Open" ? "ring-2 ring-orange-500" : ""
+          f.status === "Open" ? "ring-2 ring-orange-500 bg-orange-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-orange-700">Status: Open</p>
-              <h3 class="text-xl sm:text-2xl font-black text-orange-600 mt-1">${open.toLocaleString()}</h3>
+              <h3 id="pl-kpi-open" class="text-xl sm:text-2xl font-black text-orange-600 mt-1">${open.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-hourglass-start"></i>
@@ -567,14 +693,14 @@
 
         <!-- Closed Items -->
         <div onclick="setPlFilter('status','Closed')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all ${
-          f.status === "Closed" ? "ring-2 ring-emerald-500" : ""
+          f.status === "Closed" ? "ring-2 ring-emerald-500 bg-emerald-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Status: Closed</p>
               <div class="flex items-baseline gap-1.5 mt-1">
-                <h3 class="text-xl sm:text-2xl font-black text-emerald-600">${closed.toLocaleString()}</h3>
-                <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctClosed}%</span>
+                <h3 id="pl-kpi-closed" class="text-xl sm:text-2xl font-black text-emerald-600">${closed.toLocaleString()}</h3>
+                <span id="pl-kpi-pctClosed" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctClosed}%</span>
               </div>
             </div>
             <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs">
@@ -582,7 +708,7 @@
             </div>
           </div>
           <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div class="bg-emerald-500 h-full rounded-full" style="width: ${pctClosed}%"></div>
+            <div id="pl-kpi-closed-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: ${pctClosed}%"></div>
           </div>
         </div>
       </div>
@@ -596,7 +722,7 @@
               Punchlist Filters & Search
             </h3>
             <span id="pl-kpi-filter-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
-              ${filtered.length.toLocaleString()} / ${total.toLocaleString()} items
+              ${filtered.length.toLocaleString()} / ${totalAll.toLocaleString()} items
             </span>
           </div>
 
@@ -681,32 +807,32 @@
         <!-- Quick Filter Pills -->
         <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
           <span class="text-slate-400 text-[11px] font-medium">Quick Filters:</span>
-          <button onclick="setPlFilter('category','ALL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+          <button id="pl-btn-catAll" onclick="setPlFilter('category','ALL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
             f.category === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-          }">All Cats</button>
-          <button onclick="setPlFilter('category','A')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.category === "A" ? "bg-rose-600 text-white" : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-          }">Cat A</button>
-          <button onclick="setPlFilter('category','B')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.category === "B" ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-          }">Cat B</button>
-          <button onclick="setPlFilter('category','C')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.category === "C" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-          }">Cat C</button>
+          }"><span id="pl-btn-catAll-count">All Cats (${total.toLocaleString()})</span></button>
+          <button id="pl-btn-catA" onclick="setPlFilter('category','A')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+            f.category === "A" ? "bg-rose-600 text-white shadow-sm ring-2 ring-rose-300" : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+          }"><span id="pl-btn-catA-count">Cat A (${catA.toLocaleString()})</span></button>
+          <button id="pl-btn-catB" onclick="setPlFilter('category','B')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+            f.category === "B" ? "bg-amber-600 text-white shadow-sm ring-2 ring-amber-300" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+          }"><span id="pl-btn-catB-count">Cat B (${catB.toLocaleString()})</span></button>
+          <button id="pl-btn-catC" onclick="setPlFilter('category','C')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+            f.category === "C" ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-300" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+          }"><span id="pl-btn-catC-count">Cat C (${catC.toLocaleString()})</span></button>
           <span class="text-slate-300">|</span>
-          <button onclick="setPlFilter('status','ALL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+          <button id="pl-btn-statusAll" onclick="setPlFilter('status','ALL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
             f.status === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-          }">All Status</button>
-          <button onclick="setPlFilter('status','Open')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.status === "Open" ? "bg-orange-600 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100"
-          }">Open</button>
-          <button onclick="setPlFilter('status','Closed')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.status === "Closed" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          }">Closed</button>
+          }"><span id="pl-btn-statusAll-count">All Status</span></button>
+          <button id="pl-btn-open" onclick="setPlFilter('status','Open')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+            f.status === "Open" ? "bg-orange-600 text-white shadow-sm ring-2 ring-orange-300" : "bg-orange-50 text-orange-700 hover:bg-orange-100"
+          }"><span id="pl-btn-open-count">Open (${open.toLocaleString()})</span></button>
+          <button id="pl-btn-closed" onclick="setPlFilter('status','Closed')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+            f.status === "Closed" ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          }"><span id="pl-btn-closed-count">Closed (${closed.toLocaleString()})</span></button>
         </div>
       </div>
 
-      <!-- 3. High-Performance Paginated Data Table with Resizable Columns & Fixed Header -->
+      <!-- 3. High-Performance Paginated Data Table with Auto-fit Columns & Fixed Header -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -718,15 +844,28 @@
             </span>
           </div>
 
-          <!-- Page Controls & Column Width Reset -->
+          <!-- Page Controls & Auto-fit / Column Width Reset -->
           <div class="flex items-center gap-2">
+            <button
+              onclick="toggleAutoFit('punchlist')"
+              class="px-2.5 py-1 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                state.colMode.punchlist === 'auto'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-300'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+              }"
+              title="Toggle Auto-fit column widths to content"
+            >
+              <i class="fas fa-arrows-left-right text-[10px] text-blue-600"></i>
+              <span class="hidden sm:inline">${state.colMode.punchlist === 'auto' ? 'Auto-fit: ON' : 'Auto-fit'}</span>
+            </button>
+
             <button
               onclick="resetColWidths('punchlist')"
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-              title="Reset column widths to default"
+              title="Reset column widths to default auto-fit"
             >
-              <i class="fas fa-arrows-left-right-to-line text-[10px] text-blue-600"></i>
-              <span class="hidden sm:inline">Reset Columns</span>
+              <i class="fas fa-arrows-left-right-to-line text-[10px] text-slate-500"></i>
+              <span class="hidden sm:inline">Reset</span>
             </button>
 
             <button
@@ -750,23 +889,39 @@
         </div>
 
         <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
-          <table id="punchlist-table" class="w-full text-left sqcl-grid-table" style="table-layout: fixed;">
-            <colgroup>
-              ${state.colWidths.punchlist.map((w) => `<col style="width: ${w}px;">`).join("")}
-            </colgroup>
+          <table id="punchlist-table" class="min-w-full text-left sqcl-grid-table" style="${state.colMode.punchlist === 'auto' ? 'table-layout: auto; width: 100%;' : 'table-layout: fixed;'}">
+            ${state.colMode.punchlist === 'custom' ? `
+              <colgroup>
+                ${state.colWidths.punchlist.map((w) => `<col style="width: ${w}px;">`).join("")}
+              </colgroup>
+            ` : `
+              <colgroup>
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+                <col style="width: auto;">
+              </colgroup>
+            `}
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">#</div><div class="col-resizer" data-col-index="0" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">PunchList No</div><div class="col-resizer" data-col-index="1" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="2" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="3" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="4" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="5" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="10" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">#</div><div class="col-resizer" data-col-index="0" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">PunchList No</div><div class="col-resizer" data-col-index="1" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="2" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="3" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="4" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="5" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-4 whitespace-nowrap relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-4 whitespace-nowrap relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="10" title="Drag to resize column"></div></th>
               </tr>
             </thead>
             <tbody id="punchlist-tbody">
@@ -783,6 +938,7 @@
   window.setPlFilter = function (key, val) {
     state.filters.punchlist[key] = val;
     state.filters.punchlist.page = 1;
+    renderTabBar();
     renderTabContent();
   };
 
@@ -802,6 +958,7 @@
       page: 1,
       pageSize: 50,
     };
+    renderTabBar();
     renderTabContent();
   };
 
@@ -996,6 +1153,72 @@
       .join("");
   }
 
+  function updateCsKpiCards(filtered, totalAll) {
+    const pool = state.data.checksheet.pool;
+    let completed = 0, remaining = 0;
+    let totalNorm = 0, compNorm = 0;
+    let totalA = 0, compA = 0, totalB = 0, compB = 0;
+    const filteredSubSet = new Set();
+
+    filtered.forEach((r) => {
+      const isComp = Boolean(pool[r[6]]);
+      const norm = Number(r[8] || 0);
+      totalNorm += norm;
+      if (isComp) {
+        completed++;
+        compNorm += norm;
+      } else {
+        remaining++;
+      }
+
+      const s = pool[r[1]] || "";
+      if (s) filteredSubSet.add(s);
+
+      const t = pool[r[5]] || "";
+      if (t) {
+        if (t.endsWith("A")) {
+          totalA++;
+          if (isComp) compA++;
+        } else if (t.endsWith("B")) {
+          totalB++;
+          if (isComp) compB++;
+        }
+      }
+    });
+
+    const total = filtered.length;
+    const pctDone = total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
+    const pctNorm = totalNorm > 0 ? ((compNorm / totalNorm) * 100).toFixed(1) : "0.0";
+    const isFiltered = total !== totalAll;
+
+    const setEl = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setEl("cs-kpi-total", total.toLocaleString());
+    setEl("cs-kpi-total-sub", isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} records` : "Total Quality Inspection Records (ITR)");
+    setEl("cs-kpi-completed", completed.toLocaleString());
+    setEl("cs-kpi-pctDone", `${pctDone}%`);
+    const doneBar = document.getElementById("cs-kpi-done-bar");
+    if (doneBar) doneBar.style.width = `${pctDone}%`;
+
+    setEl("cs-kpi-remaining", remaining.toLocaleString());
+    setEl("cs-kpi-norm", totalNorm.toLocaleString());
+    setEl("cs-kpi-earned", compNorm.toLocaleString());
+    setEl("cs-kpi-pctNorm", `${pctNorm}%`);
+    const normBar = document.getElementById("cs-kpi-norm-bar");
+    if (normBar) normBar.style.width = `${pctNorm}%`;
+
+    setEl("cs-kpi-subs", filteredSubSet.size.toLocaleString());
+
+    setEl("cs-btn-total-count", `All (${total.toLocaleString()})`);
+    setEl("cs-btn-itrA-count", `ITR-A (${totalA.toLocaleString()})`);
+    setEl("cs-btn-itrB-count", `ITR-B (${totalB.toLocaleString()})`);
+    setEl("cs-btn-comp-count", `Completed (${completed.toLocaleString()})`);
+    setEl("cs-btn-rem-count", `Remaining (${remaining.toLocaleString()})`);
+  }
+
   function renderCsTableOnly() {
     const tbody = document.getElementById("checksheet-tbody");
     if (!tbody) {
@@ -1004,7 +1227,7 @@
     }
     const filtered = getFilteredChecksheets();
     const f = state.filters.checksheet;
-    const total = state.data.checksheet.rows.length;
+    const totalAll = state.data.checksheet.rows.length;
     const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
     if (f.page > totalPages) f.page = totalPages;
     const startIdx = (f.page - 1) * f.pageSize;
@@ -1019,7 +1242,7 @@
 
     const kpiBadge = document.getElementById("cs-kpi-filter-badge");
     if (kpiBadge) {
-      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} items`;
+      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${totalAll.toLocaleString()} items`;
     }
 
     const pageLabel = document.getElementById("cs-page-label");
@@ -1035,6 +1258,9 @@
     if (nextBtn) {
       nextBtn.disabled = f.page >= totalPages;
     }
+
+    updateCsKpiCards(filtered, totalAll);
+    renderTabBar();
   }
 
   function renderChecksheetTab(container) {
@@ -1043,14 +1269,17 @@
     const filtered = getFilteredChecksheets();
     const f = state.filters.checksheet;
 
-    let total = allRows.length, completed = 0, remaining = 0;
+    // Compute KPIs FROM FILTERED DATA
+    const totalAll = allRows.length;
+    const total = filtered.length;
+    const isFiltered = total !== totalAll;
+
+    let completed = 0, remaining = 0;
     let totalNorm = 0, compNorm = 0;
     let totalA = 0, compA = 0, totalB = 0, compB = 0;
-    const discSet = new Set();
-    const subSet = new Set();
-    const typeSet = new Set();
+    const filteredSubSet = new Set();
 
-    allRows.forEach((r) => {
+    filtered.forEach((r) => {
       const isComp = Boolean(pool[r[6]]);
       const norm = Number(r[8] || 0);
       totalNorm += norm;
@@ -1061,15 +1290,11 @@
         remaining++;
       }
 
-      const d = pool[r[4]] || "";
-      if (d) discSet.add(d);
-
       const s = pool[r[1]] || "";
-      if (s) subSet.add(s);
+      if (s) filteredSubSet.add(s);
 
       const t = pool[r[5]] || "";
       if (t) {
-        typeSet.add(t);
         if (t.endsWith("A")) {
           totalA++;
           if (isComp) compA++;
@@ -1080,13 +1305,25 @@
       }
     });
 
-    const pctDone = total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
-    const pctNorm = totalNorm > 0 ? ((compNorm / totalNorm) * 100).toFixed(1) : 0;
+    const pctDone = total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
+    const pctNorm = totalNorm > 0 ? ((compNorm / totalNorm) * 100).toFixed(1) : "0.0";
 
-    const sortedSubs = Array.from(subSet).sort();
+    // All available subsystems and disciplines for dropdown options
+    const allSubSet = new Set();
+    const allDiscSet = new Set();
+    const allTypeSet = new Set();
+    allRows.forEach((r) => {
+      const d = pool[r[4]] || "";
+      if (d) allDiscSet.add(d);
+      const s = pool[r[1]] || "";
+      if (s) allSubSet.add(s);
+      const t = pool[r[5]] || "";
+      if (t) allTypeSet.add(t);
+    });
+
+    const sortedSubs = Array.from(allSubSet).sort();
     const subDescMap = state.data.subsystems || {};
-    const sortedDiscs = Array.from(discSet).sort();
-    const sortedTypes = Array.from(typeSet).sort();
+    const sortedDiscs = Array.from(allDiscSet).sort();
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
     if (f.page > totalPages) f.page = totalPages;
@@ -1094,32 +1331,32 @@
     const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
 
     container.innerHTML = `
-      <!-- 1. KPI Cards Row -->
+      <!-- 1. KPI Cards Row (Dynamically Summarizes Filtered Data) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <!-- Total Checksheets -->
         <div onclick="setCsFilter('status','ALL')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Checksheet</p>
-              <h3 class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
+              <h3 id="cs-kpi-total" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-list-check"></i>
             </div>
           </div>
-          <p class="text-[10px] text-slate-500 mt-2">Total Quality Inspection Records (ITR)</p>
+          <p id="cs-kpi-total-sub" class="text-[10px] text-slate-500 mt-2">${isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} records` : "Total Quality Inspection Records (ITR)"}</p>
         </div>
 
         <!-- Completed Checksheets -->
         <div onclick="setCsFilter('status','Completed')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all ${
-          f.status === "Completed" ? "ring-2 ring-emerald-500" : ""
+          f.status === "Completed" ? "ring-2 ring-emerald-500 bg-emerald-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Completed (Signed-off)</p>
               <div class="flex items-baseline gap-1.5 mt-1">
-                <h3 class="text-xl sm:text-2xl font-black text-emerald-600">${completed.toLocaleString()}</h3>
-                <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctDone}%</span>
+                <h3 id="cs-kpi-completed" class="text-xl sm:text-2xl font-black text-emerald-600">${completed.toLocaleString()}</h3>
+                <span id="cs-kpi-pctDone" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctDone}%</span>
               </div>
             </div>
             <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs">
@@ -1127,18 +1364,18 @@
             </div>
           </div>
           <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div class="bg-emerald-500 h-full rounded-full" style="width: ${pctDone}%"></div>
+            <div id="cs-kpi-done-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: ${pctDone}%"></div>
           </div>
         </div>
 
         <!-- Remaining Checksheets -->
         <div onclick="setCsFilter('status','Remaining')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-rose-200 shadow-sm hover:shadow-md hover:border-rose-400 transition-all ${
-          f.status === "Remaining" ? "ring-2 ring-rose-500" : ""
+          f.status === "Remaining" ? "ring-2 ring-rose-500 bg-rose-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Remaining (Pending)</p>
-              <h3 class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${remaining.toLocaleString()}</h3>
+              <h3 id="cs-kpi-remaining" class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${remaining.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-clock"></i>
@@ -1152,7 +1389,7 @@
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Total Manhours</p>
-              <h3 class="text-xl sm:text-2xl font-black text-indigo-600 mt-1">${totalNorm.toLocaleString()}</h3>
+              <h3 id="cs-kpi-norm" class="text-xl sm:text-2xl font-black text-indigo-600 mt-1">${totalNorm.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-user-gear"></i>
@@ -1167,8 +1404,8 @@
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-teal-700">Earned Manhours</p>
               <div class="flex items-baseline gap-1.5 mt-1">
-                <h3 class="text-xl sm:text-2xl font-black text-teal-600">${compNorm.toLocaleString()}</h3>
-                <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800">${pctNorm}%</span>
+                <h3 id="cs-kpi-earned" class="text-xl sm:text-2xl font-black text-teal-600">${compNorm.toLocaleString()}</h3>
+                <span id="cs-kpi-pctNorm" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800">${pctNorm}%</span>
               </div>
             </div>
             <div class="w-8 h-8 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center font-bold text-xs">
@@ -1176,7 +1413,7 @@
             </div>
           </div>
           <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div class="bg-teal-500 h-full rounded-full" style="width: ${pctNorm}%"></div>
+            <div id="cs-kpi-norm-bar" class="bg-teal-500 h-full rounded-full transition-all duration-300" style="width: ${pctNorm}%"></div>
           </div>
         </div>
 
@@ -1185,13 +1422,13 @@
           <div class="flex items-start justify-between">
             <div>
               <p class="text-[11px] font-bold uppercase tracking-wider text-purple-700">SubSystems</p>
-              <h3 class="text-xl sm:text-2xl font-black text-purple-600 mt-1">${sortedSubs.length}</h3>
+              <h3 id="cs-kpi-subs" class="text-xl sm:text-2xl font-black text-purple-600 mt-1">${isFiltered ? filteredSubSet.size : sortedSubs.length}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-network-wired"></i>
             </div>
           </div>
-          <p class="text-[10px] text-purple-700 font-semibold mt-2">CPP Commissioning SubSystems</p>
+          <p class="text-[10px] text-purple-700 font-semibold mt-2">${isFiltered ? `${filteredSubSet.size} of ${sortedSubs.length} Active SubSystems` : "CPP Commissioning SubSystems"}</p>
         </div>
       </div>
 
@@ -1204,7 +1441,7 @@
               Checksheet Filters & Search
             </h3>
             <span id="cs-kpi-filter-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
-              ${filtered.length.toLocaleString()} / ${total.toLocaleString()} items
+              ${filtered.length.toLocaleString()} / ${totalAll.toLocaleString()} items
             </span>
           </div>
 
@@ -1292,6 +1529,7 @@
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span class="text-slate-500 text-[11px] font-bold">ITR Group:</span>
             <button
+              id="cs-btn-total"
               onclick="setCsFilter('itrGroup','ALL')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 f.itrGroup === 'ALL'
@@ -1299,9 +1537,10 @@
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }"
             >
-              All (${total.toLocaleString()})
+              <span id="cs-btn-total-count">All (${total.toLocaleString()})</span>
             </button>
             <button
+              id="cs-btn-itrA"
               onclick="setCsFilter('itrGroup','ITR-A')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 f.itrGroup === 'ITR-A'
@@ -1310,9 +1549,10 @@
               }"
               title="Filter checksheets ending with A (Construction / Pre-comm)"
             >
-              <i class="fas fa-hammer mr-1 text-[10px]"></i> ITR-A (${totalA.toLocaleString()})
+              <i class="fas fa-hammer mr-1 text-[10px]"></i> <span id="cs-btn-itrA-count">ITR-A (${totalA.toLocaleString()})</span>
             </button>
             <button
+              id="cs-btn-itrB"
               onclick="setCsFilter('itrGroup','ITR-B')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 f.itrGroup === 'ITR-B'
@@ -1321,7 +1561,7 @@
               }"
               title="Filter checksheets ending with B (Commissioning)"
             >
-              <i class="fas fa-vial-circle-check mr-1 text-[10px]"></i> ITR-B (${totalB.toLocaleString()})
+              <i class="fas fa-vial-circle-check mr-1 text-[10px]"></i> <span id="cs-btn-itrB-count">ITR-B (${totalB.toLocaleString()})</span>
             </button>
           </div>
 
@@ -1329,6 +1569,7 @@
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span class="text-slate-500 text-[11px] font-bold">Status:</span>
             <button
+              id="cs-btn-statusAll"
               onclick="setCsFilter('status','ALL')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 f.status === 'ALL'
@@ -1339,6 +1580,7 @@
               All
             </button>
             <button
+              id="cs-btn-comp"
               onclick="setCsFilter('status','Completed')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 f.status === 'Completed'
@@ -1346,9 +1588,10 @@
                   : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
               }"
             >
-              <i class="fas fa-check-double mr-1 text-[10px]"></i> Completed (${completed.toLocaleString()})
+              <i class="fas fa-check-double mr-1 text-[10px]"></i> <span id="cs-btn-comp-count">Completed (${completed.toLocaleString()})</span>
             </button>
             <button
+              id="cs-btn-rem"
               onclick="setCsFilter('status','Remaining')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                 f.status === 'Remaining'
@@ -1356,7 +1599,7 @@
                   : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
               }"
             >
-              <i class="fas fa-clock mr-1 text-[10px]"></i> Remaining (${remaining.toLocaleString()})
+              <i class="fas fa-clock mr-1 text-[10px]"></i> <span id="cs-btn-rem-count">Remaining (${remaining.toLocaleString()})</span>
             </button>
           </div>
         </div>
@@ -1440,6 +1683,7 @@
   window.setCsFilter = function (key, val) {
     state.filters.checksheet[key] = val;
     state.filters.checksheet.page = 1;
+    renderTabBar();
     renderTabContent();
   };
 
@@ -1460,6 +1704,7 @@
       page: 1,
       pageSize: 50,
     };
+    renderTabBar();
     renderTabContent();
   };
 
