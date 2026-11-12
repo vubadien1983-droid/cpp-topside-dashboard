@@ -32,6 +32,10 @@
       punchlist: "auto", // 'auto' (content auto-fit by default) or 'custom'
       checksheet: "custom",
     },
+    limit: {
+      punchlist: 100, // Continuous scroll batch size
+      checksheet: 100,
+    },
     colWidths: {
       punchlist: loadColWidths("punchlist", DEFAULT_PL_COL_WIDTHS),
       checksheet: loadColWidths("checksheet", DEFAULT_CS_COL_WIDTHS),
@@ -405,6 +409,77 @@
     }, 220);
   };
 
+  // =========================================================================
+  // CONTINUOUS SCROLL ENGINE (NO PAGINATION - SEAMLESS LIST SCROLLING)
+  // =========================================================================
+  const BATCH_SIZE = 100;
+
+  window.handlePlContinuousScroll = function (container) {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 350) {
+      window.loadMoreContinuous("punchlist");
+    }
+  };
+
+  window.handleCsContinuousScroll = function (container) {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 350) {
+      window.loadMoreContinuous("checksheet");
+    }
+  };
+
+  window.loadMoreContinuous = function (tabKey) {
+    const isPl = tabKey === "punchlist";
+    const filtered = isPl ? getFilteredPunchlist() : getFilteredChecksheets();
+    const currentLimit = state.limit[tabKey];
+    if (currentLimit >= filtered.length) return;
+
+    const nextLimit = Math.min(filtered.length, currentLimit + BATCH_SIZE);
+    const newRows = filtered.slice(currentLimit, nextLimit);
+    state.limit[tabKey] = nextLimit;
+
+    const tbody = document.getElementById(isPl ? "punchlist-tbody" : "checksheet-tbody");
+    if (tbody) {
+      const html = isPl ? renderPlTableRows(newRows, currentLimit) : renderCsTableRows(newRows, currentLimit);
+      tbody.insertAdjacentHTML("beforeend", html);
+    }
+    updateContinuousScrollStatus(tabKey, nextLimit, filtered.length);
+  };
+
+  window.loadAllContinuous = function (tabKey) {
+    const isPl = tabKey === "punchlist";
+    const filtered = isPl ? getFilteredPunchlist() : getFilteredChecksheets();
+    const currentLimit = state.limit[tabKey];
+    if (currentLimit >= filtered.length) return;
+
+    const newRows = filtered.slice(currentLimit);
+    state.limit[tabKey] = filtered.length;
+
+    const tbody = document.getElementById(isPl ? "punchlist-tbody" : "checksheet-tbody");
+    if (tbody) {
+      const html = isPl ? renderPlTableRows(newRows, currentLimit) : renderCsTableRows(newRows, currentLimit);
+      tbody.insertAdjacentHTML("beforeend", html);
+    }
+    updateContinuousScrollStatus(tabKey, filtered.length, filtered.length);
+    showToast(`Loaded all ${filtered.length.toLocaleString()} items into continuous list!`, "success");
+  };
+
+  function updateContinuousScrollStatus(tabKey, loaded, total) {
+    const isPl = tabKey === "punchlist";
+    const countBadge = document.getElementById(isPl ? "pl-count-badge" : "cs-count-badge");
+    if (countBadge) {
+      countBadge.textContent = loaded >= total
+        ? `(Showing all ${total.toLocaleString()} items)`
+        : `(Showing ${loaded.toLocaleString()} of ${total.toLocaleString()} items — Scroll down for more)`;
+    }
+    const statusEl = document.getElementById(isPl ? "pl-scroll-status" : "cs-scroll-status");
+    if (statusEl) {
+      if (loaded >= total) {
+        statusEl.innerHTML = `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${total.toLocaleString()} items loaded</span>`;
+      } else {
+        statusEl.innerHTML = `<span class="text-blue-600 font-medium animate-pulse"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${loaded.toLocaleString()} of ${total.toLocaleString()} items. Scroll down to load more continuously...</span>`;
+      }
+    }
+  }
+
   function renderPlTableRows(pageRows, startIdx) {
     if (pageRows.length === 0) {
       return `<tr><td colspan="11" class="py-12 text-center text-slate-400 text-xs">No matching punchlist records found.</td></tr>`;
@@ -528,39 +603,22 @@
       return;
     }
     const filtered = getFilteredPunchlist();
-    const f = state.filters.punchlist;
     const totalAll = state.data.punchlist.rows.length;
-    const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
-    if (f.page > totalPages) f.page = totalPages;
-    const startIdx = (f.page - 1) * f.pageSize;
-    const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
 
-    tbody.innerHTML = renderPlTableRows(pageRows, startIdx);
+    state.limit.punchlist = Math.min(filtered.length, BATCH_SIZE);
+    const visibleRows = filtered.slice(0, state.limit.punchlist);
 
-    const countBadge = document.getElementById("pl-count-badge");
-    if (countBadge) {
-      countBadge.textContent = `(Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})`;
-    }
+    tbody.innerHTML = renderPlTableRows(visibleRows, 0);
+
+    const scrollContainer = document.getElementById("punchlist-scroll-container");
+    if (scrollContainer) scrollContainer.scrollTop = 0;
 
     const kpiBadge = document.getElementById("pl-kpi-filter-badge");
     if (kpiBadge) {
       kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${totalAll.toLocaleString()} items`;
     }
 
-    const pageLabel = document.getElementById("pl-page-label");
-    if (pageLabel) {
-      pageLabel.textContent = `Page ${f.page} / ${totalPages}`;
-    }
-
-    const prevBtn = document.getElementById("pl-prev-btn");
-    if (prevBtn) {
-      prevBtn.disabled = f.page <= 1;
-    }
-    const nextBtn = document.getElementById("pl-next-btn");
-    if (nextBtn) {
-      nextBtn.disabled = f.page >= totalPages;
-    }
-
+    updateContinuousScrollStatus("punchlist", state.limit.punchlist, filtered.length);
     updatePlKpiCards(filtered, totalAll);
     renderTabBar();
   }
@@ -604,11 +662,9 @@
     const subDescMap = state.data.subsystems || {};
     const sortedDiscs = Array.from(allDiscSet).sort();
 
-    // Pagination
-    const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
-    if (f.page > totalPages) f.page = totalPages;
-    const startIdx = (f.page - 1) * f.pageSize;
-    const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
+    // Continuous Scroll (Start with first batch)
+    state.limit.punchlist = Math.min(filtered.length, BATCH_SIZE);
+    const pageRows = filtered.slice(0, state.limit.punchlist);
 
     container.innerHTML = `
       <!-- 1. KPI Cards Row (Dynamically Summarizes Filtered Data) -->
@@ -840,11 +896,11 @@
               Detailed Punchlist Registry
             </h4>
             <span id="pl-count-badge" class="text-xs text-slate-500 font-medium">
-              (Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})
+              (${pageRows.length >= filtered.length ? `Showing all ${filtered.length.toLocaleString()} items` : `Showing ${pageRows.length.toLocaleString()} of ${filtered.length.toLocaleString()} items — Scroll down for more`})
             </span>
           </div>
 
-          <!-- Page Controls & Auto-fit / Column Width Reset -->
+          <!-- Toolbar: Auto-fit, Reset & Load All (Continuous Scroll) -->
           <div class="flex items-center gap-2">
             <button
               onclick="toggleAutoFit('punchlist')"
@@ -869,26 +925,17 @@
             </button>
 
             <button
-              id="pl-prev-btn"
-              onclick="setPlPage(${f.page - 1})"
-              ${f.page <= 1 ? "disabled" : ""}
-              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
+              onclick="loadAllContinuous('punchlist')"
+              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Load all remaining items into the continuous list"
             >
-              <i class="fas fa-chevron-left"></i>
-            </button>
-            <span id="pl-page-label" class="text-xs font-bold text-slate-700">Page ${f.page} / ${totalPages}</span>
-            <button
-              id="pl-next-btn"
-              onclick="setPlPage(${f.page + 1})"
-              ${f.page >= totalPages ? "disabled" : ""}
-              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
-            >
-              <i class="fas fa-chevron-right"></i>
+              <i class="fas fa-list-check text-[10px] text-emerald-600"></i>
+              <span class="hidden sm:inline">Load All</span>
             </button>
           </div>
         </div>
 
-        <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
+        <div id="punchlist-scroll-container" onscroll="handlePlContinuousScroll(this)" class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
           <table id="punchlist-table" class="min-w-full text-left sqcl-grid-table" style="${state.colMode.punchlist === 'auto' ? 'table-layout: auto; width: 100%;' : 'table-layout: fixed;'}">
             ${state.colMode.punchlist === 'custom' ? `
               <colgroup>
@@ -925,9 +972,15 @@
               </tr>
             </thead>
             <tbody id="punchlist-tbody">
-              ${renderPlTableRows(pageRows, startIdx)}
+              ${renderPlTableRows(pageRows, 0)}
             </tbody>
           </table>
+          <div id="pl-scroll-status" class="py-2.5 px-4 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+            ${pageRows.length >= filtered.length
+              ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${filtered.length.toLocaleString()} items loaded</span>`
+              : `<span class="text-blue-600 font-medium animate-pulse"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${pageRows.length.toLocaleString()} of ${filtered.length.toLocaleString()} items. Scroll down to load more continuously...</span>`
+            }
+          </div>
         </div>
       </div>
     `;
@@ -1226,39 +1279,22 @@
       return;
     }
     const filtered = getFilteredChecksheets();
-    const f = state.filters.checksheet;
     const totalAll = state.data.checksheet.rows.length;
-    const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
-    if (f.page > totalPages) f.page = totalPages;
-    const startIdx = (f.page - 1) * f.pageSize;
-    const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
 
-    tbody.innerHTML = renderCsTableRows(pageRows, startIdx);
+    state.limit.checksheet = Math.min(filtered.length, BATCH_SIZE);
+    const visibleRows = filtered.slice(0, state.limit.checksheet);
 
-    const countBadge = document.getElementById("cs-count-badge");
-    if (countBadge) {
-      countBadge.textContent = `(Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})`;
-    }
+    tbody.innerHTML = renderCsTableRows(visibleRows, 0);
+
+    const scrollContainer = document.getElementById("checksheet-scroll-container");
+    if (scrollContainer) scrollContainer.scrollTop = 0;
 
     const kpiBadge = document.getElementById("cs-kpi-filter-badge");
     if (kpiBadge) {
       kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${totalAll.toLocaleString()} items`;
     }
 
-    const pageLabel = document.getElementById("cs-page-label");
-    if (pageLabel) {
-      pageLabel.textContent = `Page ${f.page} / ${totalPages}`;
-    }
-
-    const prevBtn = document.getElementById("cs-prev-btn");
-    if (prevBtn) {
-      prevBtn.disabled = f.page <= 1;
-    }
-    const nextBtn = document.getElementById("cs-next-btn");
-    if (nextBtn) {
-      nextBtn.disabled = f.page >= totalPages;
-    }
-
+    updateContinuousScrollStatus("checksheet", state.limit.checksheet, filtered.length);
     updateCsKpiCards(filtered, totalAll);
     renderTabBar();
   }
@@ -1325,10 +1361,9 @@
     const subDescMap = state.data.subsystems || {};
     const sortedDiscs = Array.from(allDiscSet).sort();
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
-    if (f.page > totalPages) f.page = totalPages;
-    const startIdx = (f.page - 1) * f.pageSize;
-    const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
+    // Continuous Scroll (Start with first batch)
+    state.limit.checksheet = Math.min(filtered.length, BATCH_SIZE);
+    const pageRows = filtered.slice(0, state.limit.checksheet);
 
     container.innerHTML = `
       <!-- 1. KPI Cards Row (Dynamically Summarizes Filtered Data) -->
@@ -1613,11 +1648,11 @@
               Detailed Checksheet Registry
             </h4>
             <span id="cs-count-badge" class="text-xs text-slate-500 font-medium">
-              (Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})
+              (${pageRows.length >= filtered.length ? `Showing all ${filtered.length.toLocaleString()} items` : `Showing ${pageRows.length.toLocaleString()} of ${filtered.length.toLocaleString()} items — Scroll down for more`})
             </span>
           </div>
 
-          <!-- Page Controls & Column Width Reset -->
+          <!-- Toolbar: Reset Columns & Load All (Continuous Scroll) -->
           <div class="flex items-center gap-2">
             <button
               onclick="resetColWidths('checksheet')"
@@ -1629,26 +1664,17 @@
             </button>
 
             <button
-              id="cs-prev-btn"
-              onclick="setCsPage(${f.page - 1})"
-              ${f.page <= 1 ? "disabled" : ""}
-              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
+              onclick="loadAllContinuous('checksheet')"
+              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Load all remaining items into the continuous list"
             >
-              <i class="fas fa-chevron-left"></i>
-            </button>
-            <span id="cs-page-label" class="text-xs font-bold text-slate-700">Page ${f.page} / ${totalPages}</span>
-            <button
-              id="cs-next-btn"
-              onclick="setCsPage(${f.page + 1})"
-              ${f.page >= totalPages ? "disabled" : ""}
-              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
-            >
-              <i class="fas fa-chevron-right"></i>
+              <i class="fas fa-list-check text-[10px] text-emerald-600"></i>
+              <span class="hidden sm:inline">Load All</span>
             </button>
           </div>
         </div>
 
-        <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
+        <div id="checksheet-scroll-container" onscroll="handleCsContinuousScroll(this)" class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
           <table id="checksheet-table" class="w-full text-left sqcl-grid-table" style="table-layout: fixed;">
             <colgroup>
               ${state.colWidths.checksheet.map((w) => `<col style="width: ${w}px;">`).join("")}
@@ -1670,9 +1696,15 @@
               </tr>
             </thead>
             <tbody id="checksheet-tbody">
-              ${renderCsTableRows(pageRows, startIdx)}
+              ${renderCsTableRows(pageRows, 0)}
             </tbody>
           </table>
+          <div id="cs-scroll-status" class="py-2.5 px-4 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+            ${pageRows.length >= filtered.length
+              ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${filtered.length.toLocaleString()} items loaded</span>`
+              : `<span class="text-blue-600 font-medium animate-pulse"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${pageRows.length.toLocaleString()} of ${filtered.length.toLocaleString()} items. Scroll down to load more continuously...</span>`
+            }
+          </div>
         </div>
       </div>
     `;
