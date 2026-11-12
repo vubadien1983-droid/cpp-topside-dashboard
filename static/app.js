@@ -3,8 +3,8 @@
 (function () {
   "use strict";
 
-  const DEFAULT_PL_COL_WIDTHS = [45, 115, 110, 140, 200, 60, 75, 105, 360, 95, 65];
-  const DEFAULT_CS_COL_WIDTHS = [50, 110, 140, 220, 100, 115, 95, 105, 105, 65, 120, 65];
+  const DEFAULT_PL_COL_WIDTHS = [45, 115, 110, 140, 200, 60, 75, 105, 320, 105, 260];
+  const DEFAULT_CS_COL_WIDTHS = [50, 110, 140, 220, 100, 115, 95, 105, 105, 65, 120, 95];
 
   function loadColWidths(key, defaults) {
     try {
@@ -48,6 +48,7 @@
         subSystem: "ALL",
         tag: "",
         status: "ALL", // 'ALL', 'Completed', 'Remaining'
+        itrGroup: "ALL", // 'ALL', 'ITR-A', 'ITR-B'
         discipline: "ALL",
         checkType: "ALL",
         page: 1,
@@ -341,7 +342,8 @@
         const status = resolvePl(r, 9);
         const disc = resolvePl(r, 15);
         const defect = resolvePl(r, 16);
-        const targetDate = r[21] || "-";
+        const corrective = resolvePl(r, 17) || "-";
+        const targetDate = resolvePl(r, 21) || "-";
 
         const catBadge =
           cat === "A"
@@ -382,13 +384,14 @@
             </td>
             <td class="py-2 px-2 text-slate-700 font-medium whitespace-nowrap overflow-hidden truncate" title="${esc(disc)}">${esc(disc)}</td>
             <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(defect)}">${esc(defect)}</td>
-            <td class="py-2 px-2 text-slate-500 font-mono text-[11px] whitespace-nowrap overflow-hidden truncate">${esc(targetDate)}</td>
-            <td class="py-2 px-2 text-center whitespace-nowrap overflow-hidden">
+            <td class="py-2 px-2 text-slate-600 font-mono text-[11px] whitespace-nowrap overflow-hidden truncate">${esc(targetDate)}</td>
+            <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(corrective)}">
               <button
                 onclick="viewPunchDetail('${esc(plNo)}')"
-                class="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-[11px] transition-colors"
+                class="hover:text-blue-600 hover:underline text-left truncate w-full"
+                title="${esc(corrective)}"
               >
-                Xem
+                ${esc(corrective)}
               </button>
             </td>
           </tr>
@@ -763,7 +766,7 @@
                 <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Kéo để chỉnh độ rộng"></div></th>
                 <th class="py-2.5 px-3 relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Kéo để chỉnh độ rộng"></div></th>
                 <th class="py-2.5 px-2 relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Action</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-3 relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
               </tr>
             </thead>
             <tbody id="punchlist-tbody">
@@ -838,10 +841,10 @@
         <div><strong>Discipline:</strong> <span class="font-semibold">${esc(resolvePl(r, 15))}</span></div>
         <div class="sm:col-span-2"><strong>Tag Description:</strong> ${esc(resolvePl(r, 6))}</div>
         <div class="sm:col-span-2"><strong>Package:</strong> ${esc(resolvePl(r, 4))}</div>
-        <div><strong>Open Date:</strong> ${esc(r[10]) || "-"}</div>
-        <div><strong>Closed Date:</strong> ${esc(r[11]) || "-"}</div>
-        <div><strong>Target Date:</strong> ${esc(r[21]) || "-"}</div>
-        <div><strong>Action By:</strong> ${esc(resolvePl(r, 12))}</div>
+        <div><strong>Open Date:</strong> ${esc(resolvePl(r, 10)) || "-"}</div>
+        <div><strong>Closed Date:</strong> ${esc(resolvePl(r, 11)) || "-"}</div>
+        <div><strong>Target Date:</strong> ${esc(resolvePl(r, 21)) || "-"}</div>
+        <div><strong>Action By:</strong> <span class="font-bold text-slate-900">${esc(resolvePl(r, 12)) || "-"}</span></div>
         <div><strong>MRIR No:</strong> ${esc(resolvePl(r, 13)) || "-"}</div>
         <div><strong>Drawing No:</strong> ${esc(resolvePl(r, 7)) || "-"}</div>
       </div>
@@ -867,7 +870,7 @@
 
     f.innerHTML = `
       <div class="text-[11px] text-slate-500">
-        Raise By: <strong>${esc(resolvePl(r, 18))}</strong> (${esc(r[19]) || "-"})
+        Raise By: <strong>${esc(resolvePl(r, 18))}</strong> (${esc(resolvePl(r, 19)) || "-"})
       </div>
       <button onclick="closeItemDetailModal()" class="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs">
         Đóng
@@ -891,6 +894,7 @@
     const statusQ = f.status;
     const discQ = f.discipline;
     const typeQ = f.checkType;
+    const itrG = f.itrGroup || "ALL";
 
     return rows.filter((r) => {
       // 0: no, 1: sub, 2: tag_no, 3: tag_desc, 4: disc, 5: cs_type, 6: comp_date, 8: norm
@@ -898,14 +902,19 @@
       if (discQ !== "ALL" && (pool[r[4]] || "") !== discQ) return false;
       if (typeQ !== "ALL" && (pool[r[5]] || "") !== typeQ) return false;
 
-      const isCompleted = Boolean(r[6]);
+      const csType = (pool[r[5]] || "").trim().toUpperCase();
+      if (itrG === "ITR-A" && !csType.endsWith("A")) return false;
+      if (itrG === "ITR-B" && !csType.endsWith("B")) return false;
+
+      const compDateStr = pool[r[6]] || "";
+      const isCompleted = Boolean(compDateStr);
       if (statusQ === "Completed" && !isCompleted) return false;
       if (statusQ === "Remaining" && isCompleted) return false;
 
       if (tagQ && !(r[2] || "").toLowerCase().includes(tagQ)) return false;
 
       if (q) {
-        const text = `${r[2]} ${pool[r[3]] || ""} ${pool[r[1]] || ""} ${pool[r[5]] || ""}`.toLowerCase();
+        const text = `${r[2]} ${pool[r[3]] || ""} ${pool[r[1]] || ""} ${pool[r[5]] || ""} ${pool[r[11]] || ""}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;
@@ -934,9 +943,10 @@
         const tagDesc = resolveCs(r, 3);
         const disc = resolveCs(r, 4);
         const csType = resolveCs(r, 5);
-        const compDate = r[6];
-        const planFinish = r[7];
+        const compDate = resolveCs(r, 6);
+        const planFinish = resolveCs(r, 7);
         const norm = r[8];
+        const phase = resolveCs(r, 9) || "-";
         const contractor = resolveCs(r, 11);
         const isComp = Boolean(compDate);
 
@@ -971,12 +981,13 @@
             <td class="py-2 px-2 font-mono text-[11px] text-slate-500 whitespace-nowrap overflow-hidden truncate">${esc(planFinish) || "-"}</td>
             <td class="py-2 px-1 text-center font-bold text-slate-700 font-mono whitespace-nowrap overflow-hidden">${esc(norm)}</td>
             <td class="py-2 px-2 text-slate-600 whitespace-nowrap overflow-hidden truncate" title="${esc(contractor)}">${esc(contractor)}</td>
-            <td class="py-2 px-2 text-center whitespace-nowrap overflow-hidden">
+            <td class="py-2 px-2 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(phase)}">
               <button
                 onclick="viewChecksheetDetail('${esc(tagNo)}', '${esc(csType)}')"
-                class="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-[11px] transition-colors"
+                class="hover:text-blue-600 hover:underline text-left truncate w-full"
+                title="${esc(phase)}"
               >
-                Xem
+                ${esc(phase)}
               </button>
             </td>
           </tr>
@@ -1034,12 +1045,13 @@
 
     let total = allRows.length, completed = 0, remaining = 0;
     let totalNorm = 0, compNorm = 0;
+    let totalA = 0, compA = 0, totalB = 0, compB = 0;
     const discSet = new Set();
     const subSet = new Set();
     const typeSet = new Set();
 
     allRows.forEach((r) => {
-      const isComp = Boolean(r[6]);
+      const isComp = Boolean(pool[r[6]]);
       const norm = Number(r[8] || 0);
       totalNorm += norm;
       if (isComp) {
@@ -1056,7 +1068,16 @@
       if (s) subSet.add(s);
 
       const t = pool[r[5]] || "";
-      if (t) typeSet.add(t);
+      if (t) {
+        typeSet.add(t);
+        if (t.endsWith("A")) {
+          totalA++;
+          if (isComp) compA++;
+        } else if (t.endsWith("B")) {
+          totalB++;
+          if (isComp) compB++;
+        }
+      }
     });
 
     const pctDone = total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
@@ -1266,17 +1287,78 @@
         </div>
 
         <!-- Quick Filter Pills -->
-        <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-          <span class="text-slate-400 text-[11px] font-medium">Trạng thái:</span>
-          <button onclick="setCsFilter('status','ALL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.status === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-          }">Tất cả (${total.toLocaleString()})</button>
-          <button onclick="setCsFilter('status','Completed')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.status === "Completed" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          }">Completed (${completed.toLocaleString()})</button>
-          <button onclick="setCsFilter('status','Remaining')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-            f.status === "Remaining" ? "bg-rose-600 text-white" : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-          }">Remaining (${remaining.toLocaleString()})</button>
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+          <!-- Nhóm ITR (ITR-A / ITR-B) -->
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span class="text-slate-500 text-[11px] font-bold">Nhóm ITR:</span>
+            <button
+              onclick="setCsFilter('itrGroup','ALL')"
+              class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                f.itrGroup === 'ALL'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }"
+            >
+              Tất cả (${total.toLocaleString()})
+            </button>
+            <button
+              onclick="setCsFilter('itrGroup','ITR-A')"
+              class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                f.itrGroup === 'ITR-A'
+                  ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+              }"
+              title="Lọc các checksheet có loại kết thúc bằng chữ A (Construction / Pre-comm)"
+            >
+              <i class="fas fa-hammer mr-1 text-[10px]"></i> ITR-A (${totalA.toLocaleString()})
+            </button>
+            <button
+              onclick="setCsFilter('itrGroup','ITR-B')"
+              class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                f.itrGroup === 'ITR-B'
+                  ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
+                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }"
+              title="Lọc các checksheet có loại kết thúc bằng chữ B (Commissioning)"
+            >
+              <i class="fas fa-vial-circle-check mr-1 text-[10px]"></i> ITR-B (${totalB.toLocaleString()})
+            </button>
+          </div>
+
+          <!-- Trạng thái hoàn thành -->
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span class="text-slate-500 text-[11px] font-bold">Trạng thái:</span>
+            <button
+              onclick="setCsFilter('status','ALL')"
+              class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                f.status === 'ALL'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }"
+            >
+              Tất cả
+            </button>
+            <button
+              onclick="setCsFilter('status','Completed')"
+              class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                f.status === 'Completed'
+                  ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              }"
+            >
+              <i class="fas fa-check-double mr-1 text-[10px]"></i> Completed (${completed.toLocaleString()})
+            </button>
+            <button
+              onclick="setCsFilter('status','Remaining')"
+              class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                f.status === 'Remaining'
+                  ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-300'
+                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+              }"
+            >
+              <i class="fas fa-clock mr-1 text-[10px]"></i> Remaining (${remaining.toLocaleString()})
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1341,7 +1423,7 @@
                 <th class="py-2.5 px-2 relative"><div class="truncate">Plan Finish</div><div class="col-resizer" data-col-index="8" title="Kéo để chỉnh độ rộng"></div></th>
                 <th class="py-2.5 px-2 text-center relative"><div class="truncate">Norm</div><div class="col-resizer" data-col-index="9" title="Kéo để chỉnh độ rộng"></div></th>
                 <th class="py-2.5 px-2 relative"><div class="truncate">SubContractor</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Action</div><div class="col-resizer" data-col-index="11" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Phase</div><div class="col-resizer" data-col-index="11" title="Kéo để chỉnh độ rộng"></div></th>
               </tr>
             </thead>
             <tbody id="checksheet-tbody">
@@ -1372,6 +1454,7 @@
       subSystem: "ALL",
       tag: "",
       status: "ALL",
+      itrGroup: "ALL",
       discipline: "ALL",
       checkType: "ALL",
       page: 1,
@@ -1389,7 +1472,8 @@
     const b = document.getElementById("item-detail-body");
     const f = document.getElementById("item-detail-footer");
 
-    const compDate = r[6];
+    const compDate = resolveCs(r, 6);
+    const planFinish = resolveCs(r, 7);
     const isComp = Boolean(compDate);
 
     h.innerHTML = `
@@ -1411,7 +1495,7 @@
         <div><strong>CheckSheet Type:</strong> <span class="font-bold text-indigo-700 font-mono">${esc(csType)}</span></div>
         <div class="sm:col-span-2"><strong>Tag Description:</strong> ${esc(resolveCs(r, 3))}</div>
         <div><strong>Complete Date:</strong> <span class="font-bold text-emerald-700">${esc(compDate) || "Chưa ký"}</span></div>
-        <div><strong>Plan Finish:</strong> ${esc(r[7]) || "-"}</div>
+        <div><strong>Plan Finish:</strong> ${esc(planFinish) || "-"}</div>
         <div><strong>Norm (Manhours):</strong> <span class="font-bold font-mono">${esc(r[8])}</span></div>
         <div><strong>Phase:</strong> ${esc(resolveCs(r, 9))}</div>
         <div><strong>Location:</strong> ${esc(resolveCs(r, 10))}</div>
@@ -1458,12 +1542,12 @@
         "Tag Description": resolvePl(r, 6),
         "Category": r[8],
         "Status": resolvePl(r, 9),
-        "Open Date": r[10],
-        "Closed Date": r[11],
+        "Open Date": resolvePl(r, 10),
+        "Closed Date": resolvePl(r, 11),
         "Discipline": resolvePl(r, 15),
         "Defect Description": resolvePl(r, 16),
         "Corrective Action": resolvePl(r, 17),
-        "Target Date": r[21],
+        "Target Date": resolvePl(r, 21),
         "Action By": resolvePl(r, 12),
         "MRIR No": resolvePl(r, 13),
       }));
@@ -1478,9 +1562,9 @@
         "Tag Description": resolveCs(r, 3),
         "Discipline": resolveCs(r, 4),
         "CheckSheet Type": resolveCs(r, 5),
-        "Status": r[6] ? "Completed" : "Remaining",
-        "Complete Date": r[6],
-        "Plan Finish": r[7],
+        "Status": resolveCs(r, 6) ? "Completed" : "Remaining",
+        "Complete Date": resolveCs(r, 6),
+        "Plan Finish": resolveCs(r, 7),
         "Norm (Mhrs)": r[8],
         "Phase": resolveCs(r, 9),
         "Location": resolveCs(r, 10),
@@ -1534,8 +1618,8 @@
         r[2],
         resolveCs(r, 4),
         resolveCs(r, 5),
-        r[6] ? "Completed" : "Remaining",
-        r[6] || "-",
+        resolveCs(r, 6) ? "Completed" : "Remaining",
+        resolveCs(r, 6) || "-",
       ]);
       doc.autoTable({
         startY: 25,

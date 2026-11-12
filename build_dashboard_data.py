@@ -31,14 +31,13 @@ STATIC_DIR = APP_DIR / "static"
 def clean_str(val) -> str:
     if val is None:
         return ""
-    if isinstance(val, datetime.datetime):
-        return val.strftime("%Y-%m-%d")
-    if isinstance(val, datetime.date):
-        return val.strftime("%Y-%m-%d")
+    if isinstance(val, (datetime.datetime, datetime.date)):
+        return val.strftime("%d-%m-%Y")
     s = str(val).replace("\xa0", " ").strip()
-    # Nếu là chuỗi datetime kiểu '2026-07-08 13:54:12.897000' -> lấy YYYY-MM-DD
-    if re.match(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}", s):
-        return s[:10]
+    # Nếu là chuỗi datetime kiểu '2026-07-08 13:54:12.897000' -> chuyển về DD-MM-YYYY
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
     return s
 
 
@@ -46,12 +45,13 @@ def clean_datetime_full(val) -> str:
     if val is None:
         return ""
     if isinstance(val, datetime.datetime):
-        return val.strftime("%Y-%m-%d %H:%M")
+        return val.strftime("%d-%m-%Y %H:%M")
     if isinstance(val, datetime.date):
-        return val.strftime("%Y-%m-%d")
+        return val.strftime("%d-%m-%Y")
     s = str(val).replace("\xa0", " ").strip()
-    if re.match(r"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}", s):
-        return s[:16]
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})", s)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)} {m.group(4)}"
     return s
 
 
