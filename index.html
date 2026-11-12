@@ -149,7 +149,7 @@
               <span class="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 font-semibold text-[10px] flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> PMS Daily Auto-Sync
               </span>
-              <span id="header-updated-badge" class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-amber-300 font-bold text-[10px] flex items-center gap-1" title="Thời gian dữ liệu được cập nhật mới nhất từ PMS">
+              <span id="header-updated-badge" class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-amber-300 font-bold text-[10px] flex items-center gap-1" title="Latest data timestamp from PMS">
                 <i class="fas fa-clock text-[9px]"></i>
                 <span id="header-updated-text">Updated: Loading...</span>
               </span>
@@ -163,7 +163,7 @@
         <!-- Right Controls: Device Mode (Laptop/Phone), Sync, Upload, Share, Export -->
         <div class="flex flex-wrap items-center gap-2">
           <!-- Laptop Mode / Phone Mode Switcher -->
-          <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700" title="Chuyển đổi giữa chế độ Máy tính (Laptop) và Điện thoại (Phone)">
+          <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700" title="Toggle between Laptop / Desktop and Mobile Phone view">
             <div id="device-mode-toggle" class="flex items-center gap-1"></div>
           </div>
 
@@ -173,14 +173,14 @@
               id="btn-sync-cloud"
               onclick="syncLatestData()"
               class="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow flex items-center gap-1.5 transition-all"
-              title="Tải dữ liệu mới nhất từ Cloud / Máy chủ"
+              title="Fetch latest data from Cloud / Server"
             >
               <i class="fas fa-sync-alt"></i> <span class="hidden sm:inline">Sync Data</span>
             </button>
             <button
               onclick="openSourceModal()"
               class="p-1.5 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium flex items-center gap-1"
-              title="Thông tin file nguồn & Nạp file Excel (.xlsx) trực tiếp"
+              title="Data Source info & Direct Excel upload"
             >
               <i class="fas fa-folder-open text-amber-400"></i>
               <span class="hidden md:inline text-[11px]">Source / Upload</span>
@@ -188,7 +188,7 @@
             <button
               onclick="openShareModal()"
               class="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow flex items-center gap-1 transition-all"
-              title="Chia sẻ Link & Mã QR cho Điện thoại"
+              title="Share Dashboard URL & Mobile QR Code"
             >
               <i class="fas fa-qrcode"></i> <span class="hidden sm:inline">Share / QR</span>
             </button>
@@ -199,14 +199,14 @@
             <button
               onclick="exportActiveTabToExcel()"
               class="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow transition-all"
-              title="Xuất dữ liệu đang lọc ra file Excel (.xlsx)"
+              title="Export filtered records to Excel (.xlsx)"
             >
               <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">Excel</span>
             </button>
             <button
               onclick="exportActiveTabToPDF()"
               class="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1 shadow transition-all"
-              title="Xuất báo cáo đang lọc ra file PDF (.pdf)"
+              title="Export filtered report to PDF (.pdf)"
             >
               <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">PDF</span>
             </button>
@@ -225,7 +225,7 @@
     <div id="app-content" class="space-y-4">
       <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
         <i class="fas fa-spinner fa-spin text-2xl text-blue-600 mb-2"></i>
-        <p class="text-sm font-bold text-slate-700">Đang nạp dữ liệu Punchlist (8,981 items) & Checksheet (33,732 items)...</p>
+        <p class="text-sm font-bold text-slate-700">Loading Punchlist (8,981 items) & Checksheet (33,732 items)...</p>
       </div>
     </div>
   </main>
@@ -249,12 +249,12 @@
           <div class="flex items-center justify-between text-emerald-950 font-extrabold text-xs sm:text-sm">
             <span class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Tự động cập nhật hàng ngày (PMS -> GitHub & Vercel)
+              Daily Automatic Sync (PMS -> GitHub & Vercel)
             </span>
             <span class="px-2 py-0.5 rounded bg-emerald-200 text-emerald-900 text-[10px] uppercase font-bold">Auto-Sync</span>
           </div>
           <p class="text-emerald-900 leading-relaxed text-[11px]">
-            Mỗi buổi sáng khi mở máy tính (hoặc lúc 06:00 AM), hệ thống tự động tải 2 file mới nhất từ <strong>PTSC PMS</strong> về thư mục <code>Downloads/</code>, tự động đóng gói dữ liệu kèm ngày giờ cập nhật và đẩy lên <strong>GitHub & Vercel</strong>.
+            Every morning upon computer boot (or at 06:00 AM), the system automatically downloads the 2 latest datasets from <strong>PTSC PMS</strong> into the <code>downloads/</code> folder, packages the data with timestamp, and deploys to <strong>GitHub & Vercel</strong>.
           </p>
           <div id="modal-source-meta" class="p-2.5 rounded-lg bg-white/80 border border-emerald-200/80 text-[11px] space-y-1 font-mono text-slate-700"></div>
         </div>
@@ -263,10 +263,10 @@
         <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/40 transition-colors space-y-2">
           <label class="block font-bold text-slate-900 flex items-center gap-2">
             <i class="fas fa-clipboard-check text-rose-600 text-sm"></i>
-            Nạp nhanh file Excel Punchlist (.xlsx) trực tiếp trên trình duyệt
+            Upload Punchlist Excel file (.xlsx) in-browser
           </label>
           <p class="text-[11px] text-slate-500">
-            Chọn file <code>PunchList_CPP_TOPSIDE_*.xlsx</code> từ máy tính hoặc điện thoại để xem ngay lập tức.
+            Select <code>PunchList_CPP_TOPSIDE_*.xlsx</code> from your PC or mobile device to view immediately.
           </p>
           <input
             type="file"
@@ -280,10 +280,10 @@
         <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/40 transition-colors space-y-2">
           <label class="block font-bold text-slate-900 flex items-center gap-2">
             <i class="fas fa-list-check text-blue-600 text-sm"></i>
-            Nạp nhanh file Excel Checksheet (.xlsx) trực tiếp trên trình duyệt
+            Upload Checksheet Excel file (.xlsx) in-browser
           </label>
           <p class="text-[11px] text-slate-500">
-            Chọn file <code>Checksheet_CPP_TOPSIDE_*.xlsx</code> từ máy tính hoặc điện thoại để xem ngay lập tức.
+            Select <code>Checksheet_CPP_TOPSIDE_*.xlsx</code> from your PC or mobile device to view immediately.
           </p>
           <input
             type="file"
@@ -296,7 +296,7 @@
 
       <div class="flex justify-end pt-3 border-t border-slate-100">
         <button onclick="closeSourceModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
-          Đóng
+          Close
         </button>
       </div>
     </div>
@@ -316,7 +316,7 @@
       </div>
       <div class="space-y-3 text-xs sm:text-sm">
         <p class="text-slate-600">
-          Mở đường link này trên <strong>Máy tính (Laptop)</strong> hoặc quét mã QR bằng <strong>Điện thoại (Phone)</strong> để tra cứu Punchlist & Checksheet mọi lúc mọi nơi:
+          Open this URL on <strong>Laptop / Desktop</strong> or scan the QR code with your <strong>Smartphone</strong> to inspect Punchlist & Checksheet anywhere, anytime:
         </p>
         <div class="flex items-center gap-2">
           <input
@@ -337,12 +337,12 @@
             alt="QR Code"
             class="w-40 h-40 rounded-lg border border-white shadow-sm"
           />
-          <span class="text-[11px] text-slate-500 mt-2 font-medium">Quét mã QR bằng Camera điện thoại</span>
+          <span class="text-[11px] text-slate-500 mt-2 font-medium">Scan QR Code with Mobile Camera</span>
         </div>
       </div>
       <div class="flex justify-end pt-2 border-t border-slate-100">
         <button onclick="closeShareModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
-          Đóng
+          Close
         </button>
       </div>
     </div>

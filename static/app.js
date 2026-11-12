@@ -90,7 +90,7 @@
       saveColWidths("checksheet", state.colWidths.checksheet);
     }
     renderTabContent();
-    showToast("Đã khôi phục độ rộng mặc định của các cột!", "info");
+    showToast("Restored default column widths!", "info");
   };
 
   function initColumnResizers(tableId, tabKey) {
@@ -150,10 +150,10 @@
           document.getElementById("app-content").innerHTML = `
             <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-6 text-center">
               <i class="fas fa-exclamation-triangle text-3xl mb-2 text-rose-600"></i>
-              <h3 class="font-bold text-base">Không thể nạp dữ liệu Dashboard</h3>
+              <h3 class="font-bold text-base">Unable to load Dashboard data</h3>
               <p class="text-xs mt-1">${esc(err.message)}</p>
               <button onclick="location.reload()" class="mt-3 px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow">
-                Thử lại
+                Retry
               </button>
             </div>
           `;
@@ -184,12 +184,12 @@
       toggleEl.innerHTML = `
         <button onclick="setDeviceMode('laptop')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
           !isPhone ? "bg-blue-600 text-white shadow" : "text-slate-300 hover:text-white"
-        }" title="Chế độ Màn hình Rộng (Laptop / Desktop)">
+        }" title="Laptop / Desktop View">
           <i class="fas fa-laptop text-xs"></i> <span class="hidden sm:inline">Laptop</span>
         </button>
         <button onclick="setDeviceMode('phone')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
           isPhone ? "bg-blue-600 text-white shadow" : "text-slate-300 hover:text-white"
-        }" title="Chế độ Điện thoại (Mobile Screen)">
+        }" title="Mobile Phone View">
           <i class="fas fa-mobile-screen text-xs"></i> <span class="hidden sm:inline">Phone</span>
         </button>
       `;
@@ -198,7 +198,7 @@
     if (state.data && state.data.meta) {
       const upEl = document.getElementById("header-updated-text");
       if (upEl) {
-        upEl.textContent = `Updated: ${state.data.meta.last_updated || "Hôm nay"}`;
+        upEl.textContent = `Updated: ${state.data.meta.last_updated || "Today"}`;
       }
     }
   }
@@ -329,7 +329,7 @@
 
   function renderPlTableRows(pageRows, startIdx) {
     if (pageRows.length === 0) {
-      return `<tr><td colspan="11" class="py-12 text-center text-slate-400 text-xs">Không tìm thấy bản ghi nào phù hợp với bộ lọc.</td></tr>`;
+      return `<tr><td colspan="11" class="py-12 text-center text-slate-400 text-xs">No matching punchlist records found.</td></tr>`;
     }
     return pageRows
       .map((r, idx) => {
@@ -418,17 +418,17 @@
 
     const countBadge = document.getElementById("pl-count-badge");
     if (countBadge) {
-      countBadge.textContent = `(Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})`;
+      countBadge.textContent = `(Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})`;
     }
 
     const kpiBadge = document.getElementById("pl-kpi-filter-badge");
     if (kpiBadge) {
-      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục`;
+      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} items`;
     }
 
     const pageLabel = document.getElementById("pl-page-label");
     if (pageLabel) {
-      pageLabel.textContent = `Trang ${f.page} / ${totalPages}`;
+      pageLabel.textContent = `Page ${f.page} / ${totalPages}`;
     }
 
     const prevBtn = document.getElementById("pl-prev-btn");
@@ -498,7 +498,7 @@
               <i class="fas fa-clipboard-list"></i>
             </div>
           </div>
-          <p class="text-[10px] text-slate-500 mt-2">Toàn bộ danh mục Punchlist</p>
+          <p class="text-[10px] text-slate-500 mt-2">Total Punchlist Registry</p>
         </div>
 
         <!-- Cat A -->
@@ -514,7 +514,7 @@
               <i class="fas fa-skull-crossbones"></i>
             </div>
           </div>
-          <p class="text-[10px] text-rose-700 font-semibold mt-2">Punch nghiêm trọng (Pre-CC)</p>
+          <p class="text-[10px] text-rose-700 font-semibold mt-2">Critical Punch (Pre-CC)</p>
         </div>
 
         <!-- Cat B -->
@@ -530,7 +530,7 @@
               <i class="fas fa-triangle-exclamation"></i>
             </div>
           </div>
-          <p class="text-[10px] text-amber-700 font-semibold mt-2">Trước Handover (Pre-Ready)</p>
+          <p class="text-[10px] text-amber-700 font-semibold mt-2">Prior to Handover (Pre-Ready)</p>
         </div>
 
         <!-- Cat C -->
@@ -546,7 +546,7 @@
               <i class="fas fa-circle-info"></i>
             </div>
           </div>
-          <p class="text-[10px] text-blue-700 font-semibold mt-2">Punch tồn đọng cho phép</p>
+          <p class="text-[10px] text-blue-700 font-semibold mt-2">Agreed Carryover Punch</p>
         </div>
 
         <!-- Open Items -->
@@ -562,7 +562,7 @@
               <i class="fas fa-hourglass-start"></i>
             </div>
           </div>
-          <p class="text-[10px] text-orange-700 font-semibold mt-2">Đang chờ xử lý đóng punch</p>
+          <p class="text-[10px] text-orange-700 font-semibold mt-2">Pending Punch Clearance</p>
         </div>
 
         <!-- Closed Items -->
@@ -593,16 +593,16 @@
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
             <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide">
-              Bộ lọc & Tìm kiếm Punchlist
+              Punchlist Filters & Search
             </h3>
             <span id="pl-kpi-filter-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
-              ${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục
+              ${filtered.length.toLocaleString()} / ${total.toLocaleString()} items
             </span>
           </div>
 
           <div class="flex items-center gap-2">
             <button onclick="resetPlFilters()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all flex items-center gap-1">
-              <i class="fas fa-rotate-left text-[10px]"></i> Xóa lọc
+              <i class="fas fa-rotate-left text-[10px]"></i> Reset Filters
             </button>
           </div>
         </div>
@@ -617,7 +617,7 @@
               onchange="setPlFilter('subSystem', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
             >
-              <option value="ALL">-- Tất cả SubSystems (${sortedSubs.length}) --</option>
+              <option value="ALL">-- All SubSystems (${sortedSubs.length}) --</option>
               ${sortedSubs
                 .map((s) => {
                   const desc = subDescMap[s] ? ` - ${subDescMap[s]}` : "";
@@ -637,7 +637,7 @@
                 type="text"
                 value="${esc(f.tag)}"
                 oninput="debouncePlFilter('tag', this.value)"
-                placeholder="Nhập Tag No (vd: CPB1-PJB...)"
+                placeholder="Enter Tag No (e.g. CPB1-PJB...)"
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500 font-mono"
               />
               <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -647,13 +647,13 @@
           <!-- Filter Discipline -->
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">
-              <i class="fas fa-wrench text-indigo-600 mr-1"></i> Bộ môn (Discipline):
+              <i class="fas fa-wrench text-indigo-600 mr-1"></i> Discipline:
             </label>
             <select
               onchange="setPlFilter('discipline', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
             >
-              <option value="ALL">-- Tất cả bộ môn --</option>
+              <option value="ALL">-- All Disciplines --</option>
               ${sortedDiscs
                 .map((d) => `<option value="${esc(d)}" ${f.discipline === d ? "selected" : ""}>${esc(d)}</option>`)
                 .join("")}
@@ -663,14 +663,14 @@
           <!-- Keyword Search -->
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">
-              <i class="fas fa-magnifying-glass text-slate-600 mr-1"></i> Tìm tự do (PL No, mô tả...):
+              <i class="fas fa-magnifying-glass text-slate-600 mr-1"></i> Keyword Search (PL No, defect, tag...):
             </label>
             <div class="relative">
               <input
                 type="text"
                 value="${esc(f.search)}"
                 oninput="debouncePlFilter('search', this.value)"
-                placeholder="Tìm nội dung khiếm khuyết, PL No..."
+                placeholder="Search defect description, PL No..."
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500"
               />
               <i class="fas fa-font absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -680,7 +680,7 @@
 
         <!-- Quick Filter Pills -->
         <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-          <span class="text-slate-400 text-[11px] font-medium">Lọc nhanh:</span>
+          <span class="text-slate-400 text-[11px] font-medium">Quick Filters:</span>
           <button onclick="setPlFilter('category','ALL')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
             f.category === "ALL" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }">All Cats</button>
@@ -711,10 +711,10 @@
         <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
-              Danh sách Punchlist chi tiết
+              Detailed Punchlist Registry
             </h4>
             <span id="pl-count-badge" class="text-xs text-slate-500 font-medium">
-              (Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})
+              (Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})
             </span>
           </div>
 
@@ -723,10 +723,10 @@
             <button
               onclick="resetColWidths('punchlist')"
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-              title="Khôi phục độ rộng mặc định của các cột"
+              title="Reset column widths to default"
             >
               <i class="fas fa-arrows-left-right-to-line text-[10px] text-blue-600"></i>
-              <span class="hidden sm:inline">Reset Cột</span>
+              <span class="hidden sm:inline">Reset Columns</span>
             </button>
 
             <button
@@ -737,7 +737,7 @@
             >
               <i class="fas fa-chevron-left"></i>
             </button>
-            <span id="pl-page-label" class="text-xs font-bold text-slate-700">Trang ${f.page} / ${totalPages}</span>
+            <span id="pl-page-label" class="text-xs font-bold text-slate-700">Page ${f.page} / ${totalPages}</span>
             <button
               id="pl-next-btn"
               onclick="setPlPage(${f.page + 1})"
@@ -756,17 +756,17 @@
             </colgroup>
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">#</div><div class="col-resizer" data-col-index="0" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">PunchList No</div><div class="col-resizer" data-col-index="1" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="2" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="3" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="4" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="5" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-3 relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-3 relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">#</div><div class="col-resizer" data-col-index="0" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">PunchList No</div><div class="col-resizer" data-col-index="1" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="2" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="3" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="4" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="5" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="10" title="Drag to resize column"></div></th>
               </tr>
             </thead>
             <tbody id="punchlist-tbody">
@@ -851,7 +851,7 @@
 
       <div class="space-y-2">
         <label class="block font-bold text-slate-900 text-xs">
-          <i class="fas fa-triangle-exclamation text-rose-600 mr-1"></i> Defect Description (Mô tả khiếm khuyết):
+          <i class="fas fa-triangle-exclamation text-rose-600 mr-1"></i> Defect Description:
         </label>
         <div class="p-3 bg-rose-50/60 rounded-xl border border-rose-200 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed font-sans font-medium">
           ${esc(resolvePl(r, 16))}
@@ -860,10 +860,10 @@
 
       <div class="space-y-2">
         <label class="block font-bold text-slate-900 text-xs">
-          <i class="fas fa-check-circle text-emerald-600 mr-1"></i> Corrective Action (Hành động khắc phục):
+          <i class="fas fa-check-circle text-emerald-600 mr-1"></i> Corrective Action:
         </label>
         <div class="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed font-sans font-medium">
-          ${esc(resolvePl(r, 17)) || "Chưa có nội dung"}
+          ${esc(resolvePl(r, 17)) || "No corrective action specified"}
         </div>
       </div>
     `;
@@ -873,7 +873,7 @@
         Raise By: <strong>${esc(resolvePl(r, 18))}</strong> (${esc(resolvePl(r, 19)) || "-"})
       </div>
       <button onclick="closeItemDetailModal()" class="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs">
-        Đóng
+        Close
       </button>
     `;
 
@@ -933,7 +933,7 @@
 
   function renderCsTableRows(pageRows, startIdx) {
     if (pageRows.length === 0) {
-      return `<tr><td colspan="12" class="py-12 text-center text-slate-400 text-xs">Không tìm thấy bản ghi checksheet nào phù hợp.</td></tr>`;
+      return `<tr><td colspan="12" class="py-12 text-center text-slate-400 text-xs">No matching checksheet records found.</td></tr>`;
     }
     return pageRows
       .map((r, idx) => {
@@ -1014,17 +1014,17 @@
 
     const countBadge = document.getElementById("cs-count-badge");
     if (countBadge) {
-      countBadge.textContent = `(Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})`;
+      countBadge.textContent = `(Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})`;
     }
 
     const kpiBadge = document.getElementById("cs-kpi-filter-badge");
     if (kpiBadge) {
-      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục`;
+      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} items`;
     }
 
     const pageLabel = document.getElementById("cs-page-label");
     if (pageLabel) {
-      pageLabel.textContent = `Trang ${f.page} / ${totalPages}`;
+      pageLabel.textContent = `Page ${f.page} / ${totalPages}`;
     }
 
     const prevBtn = document.getElementById("cs-prev-btn");
@@ -1107,7 +1107,7 @@
               <i class="fas fa-list-check"></i>
             </div>
           </div>
-          <p class="text-[10px] text-slate-500 mt-2">Tổng số biên bản nghiệm thu ITR</p>
+          <p class="text-[10px] text-slate-500 mt-2">Total Quality Inspection Records (ITR)</p>
         </div>
 
         <!-- Completed Checksheets -->
@@ -1116,7 +1116,7 @@
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Completed (Ký xong)</p>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Completed (Signed-off)</p>
               <div class="flex items-baseline gap-1.5 mt-1">
                 <h3 class="text-xl sm:text-2xl font-black text-emerald-600">${completed.toLocaleString()}</h3>
                 <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctDone}%</span>
@@ -1137,14 +1137,14 @@
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Remaining (Còn lại)</p>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Remaining (Pending)</p>
               <h3 class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${remaining.toLocaleString()}</h3>
             </div>
             <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs">
               <i class="fas fa-clock"></i>
             </div>
           </div>
-          <p class="text-[10px] text-rose-700 font-semibold mt-2">Chưa hoàn thành ký nghiệm thu</p>
+          <p class="text-[10px] text-rose-700 font-semibold mt-2">Pending Sign-off & Completion</p>
         </div>
 
         <!-- Total Norm Manhours -->
@@ -1158,7 +1158,7 @@
               <i class="fas fa-user-gear"></i>
             </div>
           </div>
-          <p class="text-[10px] text-indigo-700 font-semibold mt-2">Tổng giờ định mức (Norm)</p>
+          <p class="text-[10px] text-indigo-700 font-semibold mt-2">Total Planned Manhours (Norm)</p>
         </div>
 
         <!-- Completed Norm Manhours -->
@@ -1191,7 +1191,7 @@
               <i class="fas fa-network-wired"></i>
             </div>
           </div>
-          <p class="text-[10px] text-purple-700 font-semibold mt-2">Phân hệ nghiệm thu CPP</p>
+          <p class="text-[10px] text-purple-700 font-semibold mt-2">CPP Commissioning SubSystems</p>
         </div>
       </div>
 
@@ -1201,16 +1201,16 @@
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
             <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide">
-              Bộ lọc & Tìm kiếm Checksheet
+              Checksheet Filters & Search
             </h3>
             <span id="cs-kpi-filter-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
-              ${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục
+              ${filtered.length.toLocaleString()} / ${total.toLocaleString()} items
             </span>
           </div>
 
           <div class="flex items-center gap-2">
             <button onclick="resetCsFilters()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all flex items-center gap-1">
-              <i class="fas fa-rotate-left text-[10px]"></i> Xóa lọc
+              <i class="fas fa-rotate-left text-[10px]"></i> Reset Filters
             </button>
           </div>
         </div>
@@ -1225,7 +1225,7 @@
               onchange="setCsFilter('subSystem', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
             >
-              <option value="ALL">-- Tất cả SubSystems (${sortedSubs.length}) --</option>
+              <option value="ALL">-- All SubSystems (${sortedSubs.length}) --</option>
               ${sortedSubs
                 .map((s) => {
                   const desc = subDescMap[s] ? ` - ${subDescMap[s]}` : "";
@@ -1245,7 +1245,7 @@
                 type="text"
                 value="${esc(f.tag)}"
                 oninput="debounceCsFilter('tag', this.value)"
-                placeholder="Nhập Tag No (vd: CPPT-EBC...)"
+                placeholder="Enter Tag No (e.g. CPPT-EBC...)"
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500 font-mono"
               />
               <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -1255,13 +1255,13 @@
           <!-- Filter Discipline -->
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">
-              <i class="fas fa-wrench text-indigo-600 mr-1"></i> Bộ môn (Discipline):
+              <i class="fas fa-wrench text-indigo-600 mr-1"></i> Discipline:
             </label>
             <select
               onchange="setCsFilter('discipline', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
             >
-              <option value="ALL">-- Tất cả bộ môn --</option>
+              <option value="ALL">-- All Disciplines --</option>
               ${sortedDiscs
                 .map((d) => `<option value="${esc(d)}" ${f.discipline === d ? "selected" : ""}>${esc(d)}</option>`)
                 .join("")}
@@ -1271,14 +1271,14 @@
           <!-- Keyword Search -->
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">
-              <i class="fas fa-magnifying-glass text-slate-600 mr-1"></i> Tìm tự do (Mô tả, Loại ITR...):
+              <i class="fas fa-magnifying-glass text-slate-600 mr-1"></i> Keyword Search (Form Type, Description...):
             </label>
             <div class="relative">
               <input
                 type="text"
                 value="${esc(f.search)}"
                 oninput="debounceCsFilter('search', this.value)"
-                placeholder="Tìm loại form, mô tả thiết bị..."
+                placeholder="Search form type, equipment description..."
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500"
               />
               <i class="fas fa-font absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -1288,9 +1288,9 @@
 
         <!-- Quick Filter Pills -->
         <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
-          <!-- Nhóm ITR (ITR-A / ITR-B) -->
+          <!-- ITR Group (ITR-A / ITR-B) -->
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span class="text-slate-500 text-[11px] font-bold">Nhóm ITR:</span>
+            <span class="text-slate-500 text-[11px] font-bold">ITR Group:</span>
             <button
               onclick="setCsFilter('itrGroup','ALL')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
@@ -1299,7 +1299,7 @@
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }"
             >
-              Tất cả (${total.toLocaleString()})
+              All (${total.toLocaleString()})
             </button>
             <button
               onclick="setCsFilter('itrGroup','ITR-A')"
@@ -1308,7 +1308,7 @@
                   ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300'
                   : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
               }"
-              title="Lọc các checksheet có loại kết thúc bằng chữ A (Construction / Pre-comm)"
+              title="Filter checksheets ending with A (Construction / Pre-comm)"
             >
               <i class="fas fa-hammer mr-1 text-[10px]"></i> ITR-A (${totalA.toLocaleString()})
             </button>
@@ -1319,15 +1319,15 @@
                   ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
                   : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
               }"
-              title="Lọc các checksheet có loại kết thúc bằng chữ B (Commissioning)"
+              title="Filter checksheets ending with B (Commissioning)"
             >
               <i class="fas fa-vial-circle-check mr-1 text-[10px]"></i> ITR-B (${totalB.toLocaleString()})
             </button>
           </div>
 
-          <!-- Trạng thái hoàn thành -->
+          <!-- Completion Status -->
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span class="text-slate-500 text-[11px] font-bold">Trạng thái:</span>
+            <span class="text-slate-500 text-[11px] font-bold">Status:</span>
             <button
               onclick="setCsFilter('status','ALL')"
               class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
@@ -1336,7 +1336,7 @@
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }"
             >
-              Tất cả
+              All
             </button>
             <button
               onclick="setCsFilter('status','Completed')"
@@ -1367,10 +1367,10 @@
         <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
-              Danh sách Checksheet chi tiết
+              Detailed Checksheet Registry
             </h4>
             <span id="cs-count-badge" class="text-xs text-slate-500 font-medium">
-              (Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})
+              (Showing ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} of ${filtered.length.toLocaleString()})
             </span>
           </div>
 
@@ -1379,10 +1379,10 @@
             <button
               onclick="resetColWidths('checksheet')"
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-              title="Khôi phục độ rộng mặc định của các cột"
+              title="Reset column widths to default"
             >
               <i class="fas fa-arrows-left-right-to-line text-[10px] text-blue-600"></i>
-              <span class="hidden sm:inline">Reset Cột</span>
+              <span class="hidden sm:inline">Reset Columns</span>
             </button>
 
             <button
@@ -1393,7 +1393,7 @@
             >
               <i class="fas fa-chevron-left"></i>
             </button>
-            <span id="cs-page-label" class="text-xs font-bold text-slate-700">Trang ${f.page} / ${totalPages}</span>
+            <span id="cs-page-label" class="text-xs font-bold text-slate-700">Page ${f.page} / ${totalPages}</span>
             <button
               id="cs-next-btn"
               onclick="setCsPage(${f.page + 1})"
@@ -1412,18 +1412,18 @@
             </colgroup>
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">No</div><div class="col-resizer" data-col-index="0" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="1" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="2" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-3 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="3" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="4" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">CheckSheet Type</div><div class="col-resizer" data-col-index="5" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Complete Date</div><div class="col-resizer" data-col-index="7" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">Plan Finish</div><div class="col-resizer" data-col-index="8" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Norm</div><div class="col-resizer" data-col-index="9" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 relative"><div class="truncate">SubContractor</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
-                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Phase</div><div class="col-resizer" data-col-index="11" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">No</div><div class="col-resizer" data-col-index="0" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="1" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="2" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="3" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="4" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">CheckSheet Type</div><div class="col-resizer" data-col-index="5" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Complete Date</div><div class="col-resizer" data-col-index="7" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Plan Finish</div><div class="col-resizer" data-col-index="8" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Norm</div><div class="col-resizer" data-col-index="9" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">SubContractor</div><div class="col-resizer" data-col-index="10" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Phase</div><div class="col-resizer" data-col-index="11" title="Drag to resize column"></div></th>
               </tr>
             </thead>
             <tbody id="checksheet-tbody">
@@ -1494,7 +1494,7 @@
         <div><strong>Discipline:</strong> <span class="font-semibold">${esc(resolveCs(r, 4))}</span></div>
         <div><strong>CheckSheet Type:</strong> <span class="font-bold text-indigo-700 font-mono">${esc(csType)}</span></div>
         <div class="sm:col-span-2"><strong>Tag Description:</strong> ${esc(resolveCs(r, 3))}</div>
-        <div><strong>Complete Date:</strong> <span class="font-bold text-emerald-700">${esc(compDate) || "Chưa ký"}</span></div>
+        <div><strong>Complete Date:</strong> <span class="font-bold text-emerald-700">${esc(compDate) || "Pending"}</span></div>
         <div><strong>Plan Finish:</strong> ${esc(planFinish) || "-"}</div>
         <div><strong>Norm (Manhours):</strong> <span class="font-bold font-mono">${esc(r[8])}</span></div>
         <div><strong>Phase:</strong> ${esc(resolveCs(r, 9))}</div>
@@ -1508,7 +1508,7 @@
         PTSCMC Pre-commissioning Management System
       </div>
       <button onclick="closeItemDetailModal()" class="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs">
-        Đóng
+        Close
       </button>
     `;
 
@@ -1523,7 +1523,7 @@
   // --- Export to Excel (Client-side via SheetJS) ---
   window.exportActiveTabToExcel = function () {
     if (!window.XLSX || !state.data) {
-      alert("Thư viện Excel đang tải, vui lòng thử lại sau giây lát.");
+      alert("Excel library is loading, please try again in a moment.");
       return;
     }
 
@@ -1576,13 +1576,13 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, isPl ? "Punchlist" : "Checksheet");
     XLSX.writeFile(wb, filename);
-    showToast(`Đã xuất ${dataToExport.length.toLocaleString()} dòng ra file Excel!`, "success");
+    showToast(`Successfully exported ${dataToExport.length.toLocaleString()} rows to Excel!`, "success");
   };
 
   // --- Export to PDF ---
   window.exportActiveTabToPDF = function () {
     if (!window.jspdf) {
-      alert("Thư viện PDF đang tải, vui lòng thử lại sau.");
+      alert("PDF library is loading, please try again in a moment.");
       return;
     }
     const { jsPDF } = window.jspdf;
@@ -1630,7 +1630,7 @@
     }
 
     doc.save(`${isPl ? "Punchlist" : "Checksheet"}_CPP_TOPSIDE_Report.pdf`);
-    showToast("Đã xuất báo cáo PDF (100 mục đầu tiên)!", "success");
+    showToast("Successfully exported PDF report (first 100 rows)!", "success");
   };
 
   // --- Modals ---
@@ -1641,9 +1641,9 @@
     if (metaEl && state.data && state.data.meta) {
       const m = state.data.meta;
       metaEl.innerHTML = `
-        <div>• <strong>Punchlist:</strong> ${esc(m.punchlist_file)} (${m.punchlist_count.toLocaleString()} dòng, cập nhật: ${m.punchlist_updated})</div>
-        <div>• <strong>Checksheet:</strong> ${esc(m.checksheet_file)} (${m.checksheet_count.toLocaleString()} dòng, cập nhật: ${m.checksheet_updated})</div>
-        <div>• <strong>Dữ liệu tổng hợp lúc:</strong> ${esc(m.last_updated)}</div>
+        <div>• <strong>Punchlist:</strong> ${esc(m.punchlist_file)} (${m.punchlist_count.toLocaleString()} rows, updated: ${m.punchlist_updated})</div>
+        <div>• <strong>Checksheet:</strong> ${esc(m.checksheet_file)} (${m.checksheet_count.toLocaleString()} rows, updated: ${m.checksheet_updated})</div>
+        <div>• <strong>Data aggregated at:</strong> ${esc(m.last_updated)}</div>
       `;
     }
     modal.classList.remove("hidden");
@@ -1674,7 +1674,7 @@
     const input = document.getElementById("share-url-input");
     if (input) {
       navigator.clipboard.writeText(input.value);
-      showToast("Đã sao chép đường link Dashboard!", "success");
+      showToast("Dashboard URL copied to clipboard!", "success");
     }
   };
 
@@ -1689,12 +1689,12 @@
       if (res.ok) {
         state.data = await res.json();
         renderAll();
-        showToast("Đã đồng bộ dữ liệu mới nhất thành công!", "success");
+        showToast("Successfully synced latest data!", "success");
       } else {
-        showToast("Dữ liệu hiện tại đã là mới nhất.", "info");
+        showToast("Data is already up to date.", "info");
       }
     } catch (e) {
-      showToast("Không thể kết nối máy chủ Cloud, đang dùng dữ liệu Offline.", "info");
+      showToast("Could not reach Cloud server, using Offline data.", "info");
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -1706,16 +1706,16 @@
   window.handleExcelUpload = function (ev, type) {
     const file = ev.target.files[0];
     if (!file) return;
-    showToast(`Đang đọc file Excel ${type}...`, "info");
+    showToast(`Reading Excel file (${type})...`, "info");
     const reader = new FileReader();
     reader.onload = function (e) {
       try {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: "array" });
-        showToast("Đã đọc file Excel thành công!", "success");
+        showToast("Excel file imported successfully!", "success");
         closeSourceModal();
       } catch (err) {
-        showToast("Lỗi đọc file Excel: " + err.message, "error");
+        showToast("Failed to read Excel file: " + err.message, "error");
       }
     };
     reader.readAsArrayBuffer(file);
