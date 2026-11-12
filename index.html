@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>CPP TOPSIDE — Punchlist & Checksheet Dashboard | Block B EPC#1</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Google Fonts Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- ExcelJS for Client-Side Styled Excel (.xlsx) Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <!-- SheetJS for Client-Side Excel Parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- jsPDF & AutoTable for PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- Pre-bundled Initial Data from PMS Daily Auto-Download -->
+  <script src="./static/pms_data_bundle.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #F1F5F9;
+      color: #0F172A;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #94A3B8;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748B;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Subtle Column Grid Lines & Resizable Table Styles (Matches SOI0007689 SQCL Dashboard) */
+    .sqcl-grid-table {
+      border-collapse: collapse;
+    }
+    .sqcl-grid-table th {
+      position: relative;
+      border-right: 1px solid rgba(255, 255, 255, 0.16);
+      user-select: none;
+    }
+    .sqcl-grid-table th:last-child {
+      border-right: none;
+    }
+    .sqcl-grid-table td {
+      border-right: 1px solid rgba(203, 213, 225, 0.65);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .sqcl-grid-table td:last-child {
+      border-right: none;
+    }
+
+    /* Phone Mode Simulation on Desktop */
+    body.phone-mode-active main#main-workspace {
+      max-width: 460px;
+      margin-left: auto;
+      margin-right: auto;
+      background-color: #F8FAFC;
+      border-left: 6px solid #1E293B;
+      border-right: 6px solid #1E293B;
+      border-bottom: 10px solid #1E293B;
+      border-bottom-left-radius: 28px;
+      border-bottom-right-radius: 28px;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
+      padding-left: 10px !important;
+      padding-right: 10px !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col w-full overflow-x-hidden">
+
+  <!-- TOP HEADER & MULTI-TAB WORKSPACE BAR (FULL SCREEN WIDTH) -->
+  <header id="app-top-header" class="bg-slate-900 text-white sticky top-0 z-40 shadow-lg w-full">
+    <div class="w-full px-3 sm:px-5 pt-2.5 pb-1">
+      <div class="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-slate-800">
+        <!-- Brand / Project Title -->
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shrink-0">
+            <i class="fas fa-industry text-base text-white"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-2 py-0.5 rounded bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold text-[10px] tracking-wider uppercase">
+                VIETNAM BLOCK B GAS PROJECT • EPC#1 • CPP TOPSIDE
+              </span>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 font-semibold text-[10px] flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> PMS Daily Auto-Sync
+              </span>
+              <span id="header-updated-badge" class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-amber-300 font-bold text-[10px] flex items-center gap-1" title="Thời gian dữ liệu được cập nhật mới nhất từ PMS">
+                <i class="fas fa-clock text-[9px]"></i>
+                <span id="header-updated-text">Updated: Loading...</span>
+              </span>
+            </div>
+            <h1 class="text-xs sm:text-base lg:text-lg font-extrabold tracking-tight text-white mt-0.5">
+              CPP TOPSIDE — Punchlist & Checksheet Overview Dashboard
+            </h1>
+          </div>
+        </div>
+
+        <!-- Right Controls: Device Mode (Laptop/Phone), Sync, Upload, Share, Export -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Laptop Mode / Phone Mode Switcher -->
+          <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700" title="Chuyển đổi giữa chế độ Máy tính (Laptop) và Điện thoại (Phone)">
+            <div id="device-mode-toggle" class="flex items-center gap-1"></div>
+          </div>
+
+          <!-- Sync & Upload Buttons -->
+          <div class="flex items-center gap-1.5">
+            <button
+              id="btn-sync-cloud"
+              onclick="syncLatestData()"
+              class="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow flex items-center gap-1.5 transition-all"
+              title="Tải dữ liệu mới nhất từ Cloud / Máy chủ"
+            >
+              <i class="fas fa-sync-alt"></i> <span class="hidden sm:inline">Sync Data</span>
+            </button>
+            <button
+              onclick="openSourceModal()"
+              class="p-1.5 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium flex items-center gap-1"
+              title="Thông tin file nguồn & Nạp file Excel (.xlsx) trực tiếp"
+            >
+              <i class="fas fa-folder-open text-amber-400"></i>
+              <span class="hidden md:inline text-[11px]">Source / Upload</span>
+            </button>
+            <button
+              onclick="openShareModal()"
+              class="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow flex items-center gap-1 transition-all"
+              title="Chia sẻ Link & Mã QR cho Điện thoại"
+            >
+              <i class="fas fa-qrcode"></i> <span class="hidden sm:inline">Share / QR</span>
+            </button>
+          </div>
+
+          <!-- Global Export Buttons -->
+          <div class="flex items-center gap-1.5 border-l border-slate-700 pl-2">
+            <button
+              onclick="exportActiveTabToExcel()"
+              class="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow transition-all"
+              title="Xuất dữ liệu đang lọc ra file Excel (.xlsx)"
+            >
+              <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">Excel</span>
+            </button>
+            <button
+              onclick="exportActiveTabToPDF()"
+              class="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1 shadow transition-all"
+              title="Xuất báo cáo đang lọc ra file PDF (.pdf)"
+            >
+              <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">PDF</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MULTI-TAB WORKSPACE BAR (2 MAIN TABS + DYNAMIC DRILLDOWN TABS) -->
+      <div id="multi-tab-bar" class="flex items-center justify-between gap-2 pt-1.5 overflow-x-auto no-scrollbar"></div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT WORKSPACE -->
+  <main id="main-workspace" class="flex-1 w-full px-3 sm:px-5 py-4 transition-all duration-200 space-y-4">
+    <!-- Rendered dynamically by static/app.js -->
+    <div id="app-content" class="space-y-4">
+      <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
+        <i class="fas fa-spinner fa-spin text-2xl text-blue-600 mb-2"></i>
+        <p class="text-sm font-bold text-slate-700">Đang nạp dữ liệu Punchlist (8,981 items) & Checksheet (33,732 items)...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: DATA SOURCE & LOCAL EXCEL UPLOAD -->
+  <div id="source-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2">
+          <i class="fas fa-database text-blue-600"></i>
+          Data Source & Daily Auto-Update Status
+        </h3>
+        <button onclick="closeSourceModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm">
+        <!-- Info Card: Daily Auto-Update -->
+        <div class="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-xs space-y-2">
+          <div class="flex items-center justify-between text-emerald-950 font-extrabold text-xs sm:text-sm">
+            <span class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Tự động cập nhật hàng ngày (PMS -> GitHub & Vercel)
+            </span>
+            <span class="px-2 py-0.5 rounded bg-emerald-200 text-emerald-900 text-[10px] uppercase font-bold">Auto-Sync</span>
+          </div>
+          <p class="text-emerald-900 leading-relaxed text-[11px]">
+            Mỗi buổi sáng khi mở máy tính (hoặc lúc 06:00 AM), hệ thống tự động tải 2 file mới nhất từ <strong>PTSC PMS</strong> về thư mục <code>Downloads/</code>, tự động đóng gói dữ liệu kèm ngày giờ cập nhật và đẩy lên <strong>GitHub & Vercel</strong>.
+          </p>
+          <div id="modal-source-meta" class="p-2.5 rounded-lg bg-white/80 border border-emerald-200/80 text-[11px] space-y-1 font-mono text-slate-700"></div>
+        </div>
+
+        <!-- In-Browser Instant Excel Upload: Punchlist -->
+        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/40 transition-colors space-y-2">
+          <label class="block font-bold text-slate-900 flex items-center gap-2">
+            <i class="fas fa-clipboard-check text-rose-600 text-sm"></i>
+            Nạp nhanh file Excel Punchlist (.xlsx) trực tiếp trên trình duyệt
+          </label>
+          <p class="text-[11px] text-slate-500">
+            Chọn file <code>PunchList_CPP_TOPSIDE_*.xlsx</code> từ máy tính hoặc điện thoại để xem ngay lập tức.
+          </p>
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            onchange="handleExcelUpload(event, 'punchlist')"
+            class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-rose-600 file:text-white hover:file:bg-rose-700 cursor-pointer"
+          />
+        </div>
+
+        <!-- In-Browser Instant Excel Upload: Checksheet -->
+        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-blue-50/40 transition-colors space-y-2">
+          <label class="block font-bold text-slate-900 flex items-center gap-2">
+            <i class="fas fa-list-check text-blue-600 text-sm"></i>
+            Nạp nhanh file Excel Checksheet (.xlsx) trực tiếp trên trình duyệt
+          </label>
+          <p class="text-[11px] text-slate-500">
+            Chọn file <code>Checksheet_CPP_TOPSIDE_*.xlsx</code> từ máy tính hoặc điện thoại để xem ngay lập tức.
+          </p>
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            onchange="handleExcelUpload(event, 'checksheet')"
+            class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+          />
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-3 border-t border-slate-100">
+        <button onclick="closeSourceModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SHAREABLE LINK & MOBILE QR CODE -->
+  <div id="share-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-slate-900 text-base flex items-center gap-2">
+          <i class="fas fa-share-nodes text-indigo-600"></i>
+          Shareable Link & Mobile QR Code
+        </h3>
+        <button onclick="closeShareModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="space-y-3 text-xs sm:text-sm">
+        <p class="text-slate-600">
+          Mở đường link này trên <strong>Máy tính (Laptop)</strong> hoặc quét mã QR bằng <strong>Điện thoại (Phone)</strong> để tra cứu Punchlist & Checksheet mọi lúc mọi nơi:
+        </p>
+        <div class="flex items-center gap-2">
+          <input
+            id="share-url-input"
+            type="text"
+            readonly
+            value=""
+            class="flex-1 px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 font-mono text-xs text-slate-800"
+          />
+          <button onclick="copyShareUrl()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shrink-0">
+            <i class="fas fa-copy mr-1"></i> Copy
+          </button>
+        </div>
+        <div class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <img
+            id="share-qr-img"
+            src=""
+            alt="QR Code"
+            class="w-40 h-40 rounded-lg border border-white shadow-sm"
+          />
+          <span class="text-[11px] text-slate-500 mt-2 font-medium">Quét mã QR bằng Camera điện thoại</span>
+        </div>
+      </div>
+      <div class="flex justify-end pt-2 border-t border-slate-100">
+        <button onclick="closeShareModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RECORD DETAIL INSPECTOR (PUNCHLIST / CHECKSHEET ITEM) -->
+  <div id="item-detail-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between pb-3 border-b border-slate-100 gap-2">
+        <div id="item-detail-header"></div>
+        <button onclick="closeItemDetailModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fas fa-times text-base"></i>
+        </button>
+      </div>
+      <div id="item-detail-body" class="space-y-3 text-xs sm:text-sm"></div>
+      <div id="item-detail-footer" class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100"></div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+  <!-- Main Application Script -->
+  <script src="./static/app.js"></script>
+</body>
+</html>

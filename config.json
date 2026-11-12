@@ -1,0 +1,13 @@
+{
+  "punchlist_url": "https://pms-web.ptscmc.com.vn/PREC_ITR_PunchList_Overview",
+  "checksheet_url": "https://pms-web.ptscmc.com.vn/PREC_ITR_Checksheet_Overview_Viewer",
+  "facility_code": "CPP TOPSIDE",
+  "username": "PQ025874",
+  "punchlist_file_prefix": "PunchList_CPP_TOPSIDE",
+  "checksheet_file_prefix": "Checksheet_CPP_TOPSIDE",
+  "download_dir": "Downloads",
+  "keep_days": 0,
+  "load_timeout_sec": 600,
+  "download_timeout_sec": 900,
+  "headless": true
+}

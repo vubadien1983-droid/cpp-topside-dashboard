@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Logs & temp
+logs/
+scratch/
+*.tmp
+
+# Chrome profile
+chrome-profile/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
