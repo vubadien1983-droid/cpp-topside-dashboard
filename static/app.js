@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const DEFAULT_PL_COL_WIDTHS = [45, 115, 110, 140, 200, 60, 75, 105, 320, 105, 260];
+  const DEFAULT_PL_COL_WIDTHS = [45, 115, 120, 110, 140, 200, 60, 75, 105, 340, 105, 280];
   const DEFAULT_CS_COL_WIDTHS = [50, 110, 140, 220, 100, 115, 95, 105, 105, 65, 120, 95];
 
   function loadColWidths(key, defaults) {
@@ -392,7 +392,7 @@
       if (tagQ && !(r[5] || "").toLowerCase().includes(tagQ)) return false;
 
       if (q) {
-        const text = `${r[2]} ${r[5]} ${pool[r[6]] || ""} ${pool[r[16]] || ""} ${pool[r[1]] || ""}`.toLowerCase();
+        const text = `${r[2]} ${pool[r[3]] || ""} ${r[5]} ${pool[r[6]] || ""} ${pool[r[16]] || ""} ${pool[r[1]] || ""}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;
@@ -482,13 +482,14 @@
 
   function renderPlTableRows(pageRows, startIdx) {
     if (pageRows.length === 0) {
-      return `<tr><td colspan="11" class="py-12 text-center text-slate-400 text-xs">No matching punchlist records found.</td></tr>`;
+      return `<tr><td colspan="12" class="py-12 text-center text-slate-400 text-xs">No matching punchlist records found.</td></tr>`;
     }
     return pageRows
       .map((r, idx) => {
         const sysNo = resolvePl(r, 0);
         const subNo = resolvePl(r, 1);
         const plNo = r[2];
+        const raisedNo = resolvePl(r, 3);
         const tagNo = r[5];
         const tagDesc = resolvePl(r, 6);
         const cat = r[8];
@@ -511,41 +512,48 @@
             : "bg-orange-100 text-orange-800 border-orange-300";
 
         return `
-          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors h-10">
-            <td class="py-2 px-3 text-center text-slate-400 font-mono whitespace-nowrap">${startIdx + idx + 1}</td>
-            <td class="py-2 px-3 font-extrabold text-blue-700 font-mono whitespace-nowrap">
+          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors">
+            <td class="py-2.5 px-3 text-center text-slate-400 font-mono whitespace-nowrap align-top">${startIdx + idx + 1}</td>
+            <td class="py-2.5 px-3 font-extrabold text-blue-700 font-mono whitespace-nowrap align-top">
               <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left" title="${esc(plNo)}">
                 ${esc(plNo)}
               </button>
             </td>
-            <td class="py-2 px-3 font-semibold text-slate-800 font-mono whitespace-nowrap">
+            <td class="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap align-top" title="${esc(raisedNo)}">
+              ${esc(raisedNo) || "-"}
+            </td>
+            <td class="py-2.5 px-3 font-semibold text-slate-800 font-mono whitespace-nowrap align-top">
               <button onclick="setPlFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600" title="${esc(subNo)}">
                 ${esc(subNo)}
               </button>
             </td>
-            <td class="py-2 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap align-top">
               <button onclick="setPlFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600" title="${esc(tagNo)}">
                 ${esc(tagNo)}
               </button>
             </td>
-            <td class="py-2 px-3 text-slate-600 whitespace-nowrap max-w-xs md:max-w-sm truncate" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
-            <td class="py-2 px-2 text-center whitespace-nowrap">
+            <td class="py-2.5 px-3 text-slate-600 whitespace-nowrap max-w-xs md:max-w-sm truncate align-top" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
+            <td class="py-2.5 px-2 text-center whitespace-nowrap align-top">
               <span class="px-2 py-0.5 rounded font-black text-[10px] border ${catBadge}">${esc(cat)}</span>
             </td>
-            <td class="py-2 px-2 text-center whitespace-nowrap">
+            <td class="py-2.5 px-2 text-center whitespace-nowrap align-top">
               <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">${esc(status)}</span>
             </td>
-            <td class="py-2 px-3 text-slate-700 font-medium whitespace-nowrap" title="${esc(disc)}">${esc(disc)}</td>
-            <td class="py-2 px-4 text-slate-800 whitespace-nowrap max-w-md lg:max-w-xl xl:max-w-2xl truncate font-sans text-xs" title="${esc(defect)}">${esc(defect)}</td>
-            <td class="py-2 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap">${esc(targetDate)}</td>
-            <td class="py-2 px-4 text-emerald-700 whitespace-nowrap max-w-sm lg:max-w-lg xl:max-w-xl truncate font-sans text-xs" title="${esc(corrective)}">
-              <button
-                onclick="viewPunchDetail('${esc(plNo)}')"
-                class="hover:text-blue-600 hover:underline text-left truncate w-full"
-                title="${esc(corrective)}"
-              >
-                ${esc(corrective)}
-              </button>
+            <td class="py-2.5 px-3 text-slate-700 font-medium whitespace-nowrap align-top" title="${esc(disc)}">${esc(disc)}</td>
+            <td class="py-2.5 px-4 text-slate-800 whitespace-normal break-words leading-relaxed min-w-[280px] max-w-xl font-sans text-xs align-top">
+              ${esc(defect)}
+            </td>
+            <td class="py-2.5 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap align-top">${esc(targetDate)}</td>
+            <td class="py-2.5 px-4 text-emerald-700 whitespace-normal break-words leading-relaxed min-w-[240px] max-w-lg font-sans text-xs align-top">
+              ${corrective && corrective !== "-" ? `
+                <button
+                  onclick="viewPunchDetail('${esc(plNo)}')"
+                  class="hover:text-blue-600 hover:underline text-left whitespace-normal break-words leading-relaxed"
+                  title="Click to view details"
+                >
+                  ${esc(corrective)}
+                </button>
+              ` : `<span class="text-slate-400 font-mono">-</span>`}
             </td>
           </tr>
         `;
@@ -954,21 +962,23 @@
                 <col style="width: auto;">
                 <col style="width: auto;">
                 <col style="width: auto;">
+                <col style="width: auto;">
               </colgroup>
             `}
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
                 <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">#</div><div class="col-resizer" data-col-index="0" title="Drag to resize column"></div></th>
                 <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">PunchList No</div><div class="col-resizer" data-col-index="1" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="2" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="3" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="4" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="5" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-4 whitespace-nowrap relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Drag to resize column"></div></th>
-                <th class="py-2.5 px-4 whitespace-nowrap relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="10" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Raised No.</div><div class="col-resizer" data-col-index="2" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="3" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="4" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="5" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="6" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="7" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="8" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-4 whitespace-nowrap relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="9" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-3 whitespace-nowrap relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="10" title="Drag to resize column"></div></th>
+                <th class="py-2.5 px-4 whitespace-nowrap relative"><div class="truncate">Corrective Action</div><div class="col-resizer" data-col-index="11" title="Drag to resize column"></div></th>
               </tr>
             </thead>
             <tbody id="punchlist-tbody">
@@ -1047,6 +1057,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
         <div><strong>System No:</strong> <span class="font-mono text-blue-700">${esc(resolvePl(r, 0))}</span></div>
         <div><strong>SubSystem No:</strong> <span class="font-mono font-bold text-slate-900">${esc(resolvePl(r, 1))}</span></div>
+        <div><strong>Raised No:</strong> <span class="font-mono font-bold text-slate-800">${esc(resolvePl(r, 3)) || "-"}</span></div>
         <div><strong>Tag No:</strong> <span class="font-mono font-bold text-emerald-700">${esc(r[5])}</span></div>
         <div><strong>Discipline:</strong> <span class="font-semibold">${esc(resolvePl(r, 15))}</span></div>
         <div class="sm:col-span-2"><strong>Tag Description:</strong> ${esc(resolvePl(r, 6))}</div>
@@ -1815,6 +1826,7 @@
         "System No": resolvePl(r, 0),
         "SubSystem No": resolvePl(r, 1),
         "PunchList No": r[2],
+        "Raised No": resolvePl(r, 3),
         "Tag No": r[5],
         "Tag Description": resolvePl(r, 6),
         "Category": r[8],
@@ -1875,6 +1887,7 @@
       const rows = getFilteredPunchlist().slice(0, 100).map((r, i) => [
         i + 1,
         r[2],
+        resolvePl(r, 3) || "-",
         resolvePl(r, 1),
         r[5],
         r[8],
@@ -1884,7 +1897,7 @@
       ]);
       doc.autoTable({
         startY: 25,
-        head: [["#", "PL No", "SubSystem", "Tag No", "Cat", "Status", "Disc", "Defect"]],
+        head: [["#", "PL No", "Raised No", "SubSystem", "Tag No", "Cat", "Status", "Disc", "Defect"]],
         body: rows,
         styles: { fontSize: 8 },
       });
