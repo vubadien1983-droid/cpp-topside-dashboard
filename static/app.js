@@ -3,11 +3,35 @@
 (function () {
   "use strict";
 
+  const DEFAULT_PL_COL_WIDTHS = [45, 115, 110, 140, 200, 60, 75, 105, 360, 95, 65];
+  const DEFAULT_CS_COL_WIDTHS = [50, 110, 140, 220, 100, 115, 95, 105, 105, 65, 120, 65];
+
+  function loadColWidths(key, defaults) {
+    try {
+      const saved = localStorage.getItem(`CPP_${key.toUpperCase()}_COL_WIDTHS`);
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr) && arr.length === defaults.length) return arr;
+      }
+    } catch (e) {}
+    return [...defaults];
+  }
+
+  function saveColWidths(key, widths) {
+    try {
+      localStorage.setItem(`CPP_${key.toUpperCase()}_COL_WIDTHS`, JSON.stringify(widths));
+    } catch (e) {}
+  }
+
   // Global State
   const state = {
     data: window.PMS_INITIAL_DATA || null,
     activeTab: "punchlist", // 'punchlist' or 'checksheet'
     deviceMode: window.innerWidth < 768 ? "phone" : "laptop",
+    colWidths: {
+      punchlist: loadColWidths("punchlist", DEFAULT_PL_COL_WIDTHS),
+      checksheet: loadColWidths("checksheet", DEFAULT_CS_COL_WIDTHS),
+    },
     filters: {
       punchlist: {
         search: "",
@@ -54,6 +78,59 @@
     const pool = state.data.checksheet.pool;
     const v = row[idx];
     return typeof v === "number" ? pool[v] || "" : (v || "");
+  }
+
+  window.resetColWidths = function (key) {
+    if (key === "punchlist") {
+      state.colWidths.punchlist = [...DEFAULT_PL_COL_WIDTHS];
+      saveColWidths("punchlist", state.colWidths.punchlist);
+    } else {
+      state.colWidths.checksheet = [...DEFAULT_CS_COL_WIDTHS];
+      saveColWidths("checksheet", state.colWidths.checksheet);
+    }
+    renderTabContent();
+    showToast("Đã khôi phục độ rộng mặc định của các cột!", "info");
+  };
+
+  function initColumnResizers(tableId, tabKey) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+
+    const resizers = table.querySelectorAll(".col-resizer");
+    resizers.forEach((resizer) => {
+      resizer.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const colIndex = parseInt(resizer.getAttribute("data-col-index"), 10);
+        const colEl = table.querySelector(`colgroup col:nth-child(${colIndex + 1})`);
+        if (!colEl) return;
+
+        const startX = e.pageX;
+        const currentWidths = state.colWidths[tabKey];
+        const startWidth = colEl.offsetWidth || currentWidths[colIndex] || 80;
+        resizer.classList.add("is-resizing");
+        document.body.classList.add("resizing-columns");
+
+        function onMouseMove(moveEv) {
+          const delta = moveEv.pageX - startX;
+          const newWidth = Math.max(30, startWidth + delta);
+          colEl.style.width = `${newWidth}px`;
+          currentWidths[colIndex] = newWidth;
+        }
+
+        function onMouseUp() {
+          resizer.classList.remove("is-resizing");
+          document.body.classList.remove("resizing-columns");
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          saveColWidths(tabKey, currentWidths);
+        }
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    });
   }
 
   // --- Initialize Application ---
@@ -239,6 +316,128 @@
     });
   }
 
+  let debouncePlTimer = null;
+  window.debouncePlFilter = function (key, val) {
+    state.filters.punchlist[key] = val;
+    state.filters.punchlist.page = 1;
+    clearTimeout(debouncePlTimer);
+    debouncePlTimer = setTimeout(() => {
+      renderPlTableOnly();
+    }, 220);
+  };
+
+  function renderPlTableRows(pageRows, startIdx) {
+    if (pageRows.length === 0) {
+      return `<tr><td colspan="11" class="py-12 text-center text-slate-400 text-xs">Không tìm thấy bản ghi nào phù hợp với bộ lọc.</td></tr>`;
+    }
+    return pageRows
+      .map((r, idx) => {
+        const sysNo = resolvePl(r, 0);
+        const subNo = resolvePl(r, 1);
+        const plNo = r[2];
+        const tagNo = r[5];
+        const tagDesc = resolvePl(r, 6);
+        const cat = r[8];
+        const status = resolvePl(r, 9);
+        const disc = resolvePl(r, 15);
+        const defect = resolvePl(r, 16);
+        const targetDate = r[21] || "-";
+
+        const catBadge =
+          cat === "A"
+            ? "bg-rose-100 text-rose-800 border-rose-300"
+            : cat === "B"
+            ? "bg-amber-100 text-amber-800 border-amber-300"
+            : "bg-blue-100 text-blue-800 border-blue-300";
+
+        const statusBadge =
+          status === "Closed"
+            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+            : "bg-orange-100 text-orange-800 border-orange-300";
+
+        return `
+          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors h-10">
+            <td class="py-2 px-2 text-center text-slate-400 font-mono whitespace-nowrap overflow-hidden">${startIdx + idx + 1}</td>
+            <td class="py-2 px-2 font-extrabold text-blue-700 font-mono whitespace-nowrap overflow-hidden truncate">
+              <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left truncate" title="${esc(plNo)}">
+                ${esc(plNo)}
+              </button>
+            </td>
+            <td class="py-2 px-2 font-semibold text-slate-800 font-mono whitespace-nowrap overflow-hidden truncate">
+              <button onclick="setPlFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600 truncate" title="${esc(subNo)}">
+                ${esc(subNo)}
+              </button>
+            </td>
+            <td class="py-2 px-2 font-mono font-bold text-slate-900 whitespace-nowrap overflow-hidden truncate">
+              <button onclick="setPlFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600 truncate" title="${esc(tagNo)}">
+                ${esc(tagNo)}
+              </button>
+            </td>
+            <td class="py-2 px-2 text-slate-600 whitespace-nowrap overflow-hidden truncate" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
+            <td class="py-2 px-1 text-center whitespace-nowrap overflow-hidden">
+              <span class="px-2 py-0.5 rounded font-black text-[10px] border ${catBadge}">${esc(cat)}</span>
+            </td>
+            <td class="py-2 px-1 text-center whitespace-nowrap overflow-hidden">
+              <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">${esc(status)}</span>
+            </td>
+            <td class="py-2 px-2 text-slate-700 font-medium whitespace-nowrap overflow-hidden truncate" title="${esc(disc)}">${esc(disc)}</td>
+            <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(defect)}">${esc(defect)}</td>
+            <td class="py-2 px-2 text-slate-500 font-mono text-[11px] whitespace-nowrap overflow-hidden truncate">${esc(targetDate)}</td>
+            <td class="py-2 px-2 text-center whitespace-nowrap overflow-hidden">
+              <button
+                onclick="viewPunchDetail('${esc(plNo)}')"
+                class="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-[11px] transition-colors"
+              >
+                Xem
+              </button>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function renderPlTableOnly() {
+    const tbody = document.getElementById("punchlist-tbody");
+    if (!tbody) {
+      renderTabContent();
+      return;
+    }
+    const filtered = getFilteredPunchlist();
+    const f = state.filters.punchlist;
+    const total = state.data.punchlist.rows.length;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
+    if (f.page > totalPages) f.page = totalPages;
+    const startIdx = (f.page - 1) * f.pageSize;
+    const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
+
+    tbody.innerHTML = renderPlTableRows(pageRows, startIdx);
+
+    const countBadge = document.getElementById("pl-count-badge");
+    if (countBadge) {
+      countBadge.textContent = `(Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})`;
+    }
+
+    const kpiBadge = document.getElementById("pl-kpi-filter-badge");
+    if (kpiBadge) {
+      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục`;
+    }
+
+    const pageLabel = document.getElementById("pl-page-label");
+    if (pageLabel) {
+      pageLabel.textContent = `Trang ${f.page} / ${totalPages}`;
+    }
+
+    const prevBtn = document.getElementById("pl-prev-btn");
+    if (prevBtn) {
+      prevBtn.disabled = f.page <= 1;
+    }
+    const nextBtn = document.getElementById("pl-next-btn");
+    if (nextBtn) {
+      nextBtn.disabled = f.page >= totalPages;
+    }
+  }
+
   function renderPunchlistTab(container) {
     const allRows = state.data.punchlist.rows;
     const pool = state.data.punchlist.pool;
@@ -393,7 +592,7 @@
             <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide">
               Bộ lọc & Tìm kiếm Punchlist
             </h3>
-            <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
+            <span id="pl-kpi-filter-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
               ${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục
             </span>
           </div>
@@ -434,7 +633,7 @@
               <input
                 type="text"
                 value="${esc(f.tag)}"
-                oninput="setPlFilter('tag', this.value)"
+                oninput="debouncePlFilter('tag', this.value)"
                 placeholder="Nhập Tag No (vd: CPB1-PJB...)"
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500 font-mono"
               />
@@ -467,7 +666,7 @@
               <input
                 type="text"
                 value="${esc(f.search)}"
-                oninput="setPlFilter('search', this.value)"
+                oninput="debouncePlFilter('search', this.value)"
                 placeholder="Tìm nội dung khiếm khuyết, PL No..."
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500"
               />
@@ -504,29 +703,40 @@
         </div>
       </div>
 
-      <!-- 3. High-Performance Paginated Data Table -->
+      <!-- 3. High-Performance Paginated Data Table with Resizable Columns & Fixed Header -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
               Danh sách Punchlist chi tiết
             </h4>
-            <span class="text-xs text-slate-500 font-medium">
-              (Hiển thị ${pageRows.length > 0 ? (startIdx + 1) : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})
+            <span id="pl-count-badge" class="text-xs text-slate-500 font-medium">
+              (Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})
             </span>
           </div>
 
-          <!-- Page Controls -->
+          <!-- Page Controls & Column Width Reset -->
           <div class="flex items-center gap-2">
             <button
+              onclick="resetColWidths('punchlist')"
+              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Khôi phục độ rộng mặc định của các cột"
+            >
+              <i class="fas fa-arrows-left-right-to-line text-[10px] text-blue-600"></i>
+              <span class="hidden sm:inline">Reset Cột</span>
+            </button>
+
+            <button
+              id="pl-prev-btn"
               onclick="setPlPage(${f.page - 1})"
               ${f.page <= 1 ? "disabled" : ""}
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
             >
               <i class="fas fa-chevron-left"></i>
             </button>
-            <span class="text-xs font-bold text-slate-700">Trang ${f.page} / ${totalPages}</span>
+            <span id="pl-page-label" class="text-xs font-bold text-slate-700">Trang ${f.page} / ${totalPages}</span>
             <button
+              id="pl-next-btn"
               onclick="setPlPage(${f.page + 1})"
               ${f.page >= totalPages ? "disabled" : ""}
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
@@ -536,98 +746,35 @@
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left sqcl-grid-table">
+        <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
+          <table id="punchlist-table" class="w-full text-left sqcl-grid-table" style="table-layout: fixed;">
+            <colgroup>
+              ${state.colWidths.punchlist.map((w) => `<col style="width: ${w}px;">`).join("")}
+            </colgroup>
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-3 text-center w-12">#</th>
-                <th class="py-2.5 px-3">PunchList No</th>
-                <th class="py-2.5 px-3">SubSystem</th>
-                <th class="py-2.5 px-3">Tag No</th>
-                <th class="py-2.5 px-3">Tag Description</th>
-                <th class="py-2.5 px-2 text-center w-16">Cat</th>
-                <th class="py-2.5 px-2 text-center w-20">Status</th>
-                <th class="py-2.5 px-3">Discipline</th>
-                <th class="py-2.5 px-4 min-w-[240px]">Defect Description</th>
-                <th class="py-2.5 px-3">Target Date</th>
-                <th class="py-2.5 px-3 text-center w-20">Action</th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">#</div><div class="col-resizer" data-col-index="0" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">PunchList No</div><div class="col-resizer" data-col-index="1" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="2" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="3" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="4" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Cat</div><div class="col-resizer" data-col-index="5" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="7" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-3 relative"><div class="truncate">Defect Description</div><div class="col-resizer" data-col-index="8" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Target Date</div><div class="col-resizer" data-col-index="9" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Action</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
               </tr>
             </thead>
-            <tbody>
-              ${
-                pageRows.length === 0
-                  ? `<tr><td colspan="11" class="py-12 text-center text-slate-400 text-xs">Không tìm thấy bản ghi nào phù hợp với bộ lọc.</td></tr>`
-                  : pageRows
-                      .map((r, idx) => {
-                        const sysNo = resolvePl(r, 0);
-                        const subNo = resolvePl(r, 1);
-                        const plNo = r[2];
-                        const tagNo = r[5];
-                        const tagDesc = resolvePl(r, 6);
-                        const cat = r[8];
-                        const status = resolvePl(r, 9);
-                        const disc = resolvePl(r, 15);
-                        const defect = resolvePl(r, 16);
-                        const targetDate = r[21] || "-";
-
-                        const catBadge =
-                          cat === "A"
-                            ? "bg-rose-100 text-rose-800 border-rose-300"
-                            : cat === "B"
-                            ? "bg-amber-100 text-amber-800 border-amber-300"
-                            : "bg-blue-100 text-blue-800 border-blue-300";
-
-                        const statusBadge =
-                          status === "Closed"
-                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                            : "bg-orange-100 text-orange-800 border-orange-300";
-
-                        return `
-                          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors">
-                            <td class="py-2 px-3 text-center text-slate-400 font-mono">${startIdx + idx + 1}</td>
-                            <td class="py-2 px-3 font-extrabold text-blue-700 font-mono">
-                              <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left">
-                                ${esc(plNo)}
-                              </button>
-                            </td>
-                            <td class="py-2 px-3 font-semibold text-slate-800 font-mono">
-                              <button onclick="setPlFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600">
-                                ${esc(subNo)}
-                              </button>
-                            </td>
-                            <td class="py-2 px-3 font-mono font-bold text-slate-900">
-                              <button onclick="setPlFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600">
-                                ${esc(tagNo)}
-                              </button>
-                            </td>
-                            <td class="py-2 px-3 text-slate-600 max-w-xs truncate" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
-                            <td class="py-2 px-2 text-center">
-                              <span class="px-2 py-0.5 rounded font-black text-[10px] border ${catBadge}">${esc(cat)}</span>
-                            </td>
-                            <td class="py-2 px-2 text-center">
-                              <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">${esc(status)}</span>
-                            </td>
-                            <td class="py-2 px-3 text-slate-700 font-medium">${esc(disc)}</td>
-                            <td class="py-2 px-4 text-slate-700 line-clamp-2" title="${esc(defect)}">${esc(defect)}</td>
-                            <td class="py-2 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">${esc(targetDate)}</td>
-                            <td class="py-2 px-3 text-center">
-                              <button
-                                onclick="viewPunchDetail('${esc(plNo)}')"
-                                class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-[11px] transition-colors"
-                              >
-                                Xem
-                              </button>
-                            </td>
-                          </tr>
-                        `;
-                      })
-                      .join("")
-              }
+            <tbody id="punchlist-tbody">
+              ${renderPlTableRows(pageRows, startIdx)}
             </tbody>
           </table>
         </div>
       </div>
     `;
+
+    initColumnResizers("punchlist-table", "punchlist");
   }
 
   window.setPlFilter = function (key, val) {
@@ -638,7 +785,7 @@
 
   window.setPlPage = function (p) {
     state.filters.punchlist.page = p;
-    renderTabContent();
+    renderPlTableOnly();
   };
 
   window.resetPlFilters = function () {
@@ -763,6 +910,120 @@
       }
       return true;
     });
+  }
+
+  let debounceCsTimer = null;
+  window.debounceCsFilter = function (key, val) {
+    state.filters.checksheet[key] = val;
+    state.filters.checksheet.page = 1;
+    clearTimeout(debounceCsTimer);
+    debounceCsTimer = setTimeout(() => {
+      renderCsTableOnly();
+    }, 220);
+  };
+
+  function renderCsTableRows(pageRows, startIdx) {
+    if (pageRows.length === 0) {
+      return `<tr><td colspan="12" class="py-12 text-center text-slate-400 text-xs">Không tìm thấy bản ghi checksheet nào phù hợp.</td></tr>`;
+    }
+    return pageRows
+      .map((r, idx) => {
+        const no = r[0] || (startIdx + idx + 1);
+        const subNo = resolveCs(r, 1);
+        const tagNo = r[2];
+        const tagDesc = resolveCs(r, 3);
+        const disc = resolveCs(r, 4);
+        const csType = resolveCs(r, 5);
+        const compDate = r[6];
+        const planFinish = r[7];
+        const norm = r[8];
+        const contractor = resolveCs(r, 11);
+        const isComp = Boolean(compDate);
+
+        const statusBadge = isComp
+          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+          : "bg-slate-100 text-slate-700 border-slate-300";
+
+        return `
+          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors h-10">
+            <td class="py-2 px-2 text-center text-slate-400 font-mono whitespace-nowrap overflow-hidden">${esc(no)}</td>
+            <td class="py-2 px-2 font-semibold text-slate-800 font-mono whitespace-nowrap overflow-hidden truncate">
+              <button onclick="setCsFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600 truncate" title="${esc(subNo)}">
+                ${esc(subNo)}
+              </button>
+            </td>
+            <td class="py-2 px-2 font-mono font-bold text-slate-900 whitespace-nowrap overflow-hidden truncate">
+              <button onclick="setCsFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600 truncate" title="${esc(tagNo)}">
+                ${esc(tagNo)}
+              </button>
+            </td>
+            <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
+            <td class="py-2 px-2 text-slate-700 font-medium whitespace-nowrap overflow-hidden truncate" title="${esc(disc)}">${esc(disc)}</td>
+            <td class="py-2 px-2 font-mono font-bold text-indigo-700 whitespace-nowrap overflow-hidden truncate" title="${esc(csType)}">${esc(csType)}</td>
+            <td class="py-2 px-1 text-center whitespace-nowrap overflow-hidden">
+              <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">
+                ${isComp ? "Completed" : "Remaining"}
+              </span>
+            </td>
+            <td class="py-2 px-2 font-mono text-[11px] whitespace-nowrap overflow-hidden truncate ${isComp ? "text-emerald-700 font-semibold" : "text-slate-400"}">
+              ${esc(compDate) || "-"}
+            </td>
+            <td class="py-2 px-2 font-mono text-[11px] text-slate-500 whitespace-nowrap overflow-hidden truncate">${esc(planFinish) || "-"}</td>
+            <td class="py-2 px-1 text-center font-bold text-slate-700 font-mono whitespace-nowrap overflow-hidden">${esc(norm)}</td>
+            <td class="py-2 px-2 text-slate-600 whitespace-nowrap overflow-hidden truncate" title="${esc(contractor)}">${esc(contractor)}</td>
+            <td class="py-2 px-2 text-center whitespace-nowrap overflow-hidden">
+              <button
+                onclick="viewChecksheetDetail('${esc(tagNo)}', '${esc(csType)}')"
+                class="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-[11px] transition-colors"
+              >
+                Xem
+              </button>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function renderCsTableOnly() {
+    const tbody = document.getElementById("checksheet-tbody");
+    if (!tbody) {
+      renderTabContent();
+      return;
+    }
+    const filtered = getFilteredChecksheets();
+    const f = state.filters.checksheet;
+    const total = state.data.checksheet.rows.length;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / f.pageSize));
+    if (f.page > totalPages) f.page = totalPages;
+    const startIdx = (f.page - 1) * f.pageSize;
+    const pageRows = filtered.slice(startIdx, startIdx + f.pageSize);
+
+    tbody.innerHTML = renderCsTableRows(pageRows, startIdx);
+
+    const countBadge = document.getElementById("cs-count-badge");
+    if (countBadge) {
+      countBadge.textContent = `(Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})`;
+    }
+
+    const kpiBadge = document.getElementById("cs-kpi-filter-badge");
+    if (kpiBadge) {
+      kpiBadge.textContent = `${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục`;
+    }
+
+    const pageLabel = document.getElementById("cs-page-label");
+    if (pageLabel) {
+      pageLabel.textContent = `Trang ${f.page} / ${totalPages}`;
+    }
+
+    const prevBtn = document.getElementById("cs-prev-btn");
+    if (prevBtn) {
+      prevBtn.disabled = f.page <= 1;
+    }
+    const nextBtn = document.getElementById("cs-next-btn");
+    if (nextBtn) {
+      nextBtn.disabled = f.page >= totalPages;
+    }
   }
 
   function renderChecksheetTab(container) {
@@ -921,7 +1182,7 @@
             <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide">
               Bộ lọc & Tìm kiếm Checksheet
             </h3>
-            <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
+            <span id="cs-kpi-filter-badge" class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
               ${filtered.length.toLocaleString()} / ${total.toLocaleString()} mục
             </span>
           </div>
@@ -962,7 +1223,7 @@
               <input
                 type="text"
                 value="${esc(f.tag)}"
-                oninput="setCsFilter('tag', this.value)"
+                oninput="debounceCsFilter('tag', this.value)"
                 placeholder="Nhập Tag No (vd: CPPT-EBC...)"
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500 font-mono"
               />
@@ -995,7 +1256,7 @@
               <input
                 type="text"
                 value="${esc(f.search)}"
-                oninput="setCsFilter('search', this.value)"
+                oninput="debounceCsFilter('search', this.value)"
                 placeholder="Tìm loại form, mô tả thiết bị..."
                 class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500"
               />
@@ -1019,29 +1280,40 @@
         </div>
       </div>
 
-      <!-- 3. Paginated Data Table -->
+      <!-- 3. Paginated Data Table with Resizable Columns & Fixed Header -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
               Danh sách Checksheet chi tiết
             </h4>
-            <span class="text-xs text-slate-500 font-medium">
-              (Hiển thị ${pageRows.length > 0 ? (startIdx + 1) : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})
+            <span id="cs-count-badge" class="text-xs text-slate-500 font-medium">
+              (Hiển thị ${pageRows.length > 0 ? startIdx + 1 : 0} - ${Math.min(filtered.length, startIdx + f.pageSize)} của ${filtered.length.toLocaleString()})
             </span>
           </div>
 
-          <!-- Page Controls -->
+          <!-- Page Controls & Column Width Reset -->
           <div class="flex items-center gap-2">
             <button
+              onclick="resetColWidths('checksheet')"
+              class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Khôi phục độ rộng mặc định của các cột"
+            >
+              <i class="fas fa-arrows-left-right-to-line text-[10px] text-blue-600"></i>
+              <span class="hidden sm:inline">Reset Cột</span>
+            </button>
+
+            <button
+              id="cs-prev-btn"
               onclick="setCsPage(${f.page - 1})"
               ${f.page <= 1 ? "disabled" : ""}
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
             >
               <i class="fas fa-chevron-left"></i>
             </button>
-            <span class="text-xs font-bold text-slate-700">Trang ${f.page} / ${totalPages}</span>
+            <span id="cs-page-label" class="text-xs font-bold text-slate-700">Trang ${f.page} / ${totalPages}</span>
             <button
+              id="cs-next-btn"
               onclick="setCsPage(${f.page + 1})"
               ${f.page >= totalPages ? "disabled" : ""}
               class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100"
@@ -1051,91 +1323,36 @@
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full text-left sqcl-grid-table">
+        <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-230px)] min-h-[380px] bg-white">
+          <table id="checksheet-table" class="w-full text-left sqcl-grid-table" style="table-layout: fixed;">
+            <colgroup>
+              ${state.colWidths.checksheet.map((w) => `<col style="width: ${w}px;">`).join("")}
+            </colgroup>
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-3 text-center w-12">No</th>
-                <th class="py-2.5 px-3">SubSystem</th>
-                <th class="py-2.5 px-3">Tag No</th>
-                <th class="py-2.5 px-4 min-w-[200px]">Tag Description</th>
-                <th class="py-2.5 px-3">Discipline</th>
-                <th class="py-2.5 px-3">CheckSheet Type</th>
-                <th class="py-2.5 px-2 text-center w-24">Status</th>
-                <th class="py-2.5 px-3">Complete Date</th>
-                <th class="py-2.5 px-3">Plan Finish</th>
-                <th class="py-2.5 px-2 text-center w-16">Norm</th>
-                <th class="py-2.5 px-3">SubContractor</th>
-                <th class="py-2.5 px-3 text-center w-16">Action</th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">No</div><div class="col-resizer" data-col-index="0" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">SubSystem</div><div class="col-resizer" data-col-index="1" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Tag No</div><div class="col-resizer" data-col-index="2" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-3 relative"><div class="truncate">Tag Description</div><div class="col-resizer" data-col-index="3" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Discipline</div><div class="col-resizer" data-col-index="4" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">CheckSheet Type</div><div class="col-resizer" data-col-index="5" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Status</div><div class="col-resizer" data-col-index="6" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Complete Date</div><div class="col-resizer" data-col-index="7" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">Plan Finish</div><div class="col-resizer" data-col-index="8" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Norm</div><div class="col-resizer" data-col-index="9" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 relative"><div class="truncate">SubContractor</div><div class="col-resizer" data-col-index="10" title="Kéo để chỉnh độ rộng"></div></th>
+                <th class="py-2.5 px-2 text-center relative"><div class="truncate">Action</div><div class="col-resizer" data-col-index="11" title="Kéo để chỉnh độ rộng"></div></th>
               </tr>
             </thead>
-            <tbody>
-              ${
-                pageRows.length === 0
-                  ? `<tr><td colspan="12" class="py-12 text-center text-slate-400 text-xs">Không tìm thấy bản ghi checksheet nào phù hợp.</td></tr>`
-                  : pageRows
-                      .map((r, idx) => {
-                        const no = r[0] || (startIdx + idx + 1);
-                        const subNo = resolveCs(r, 1);
-                        const tagNo = r[2];
-                        const tagDesc = resolveCs(r, 3);
-                        const disc = resolveCs(r, 4);
-                        const csType = resolveCs(r, 5);
-                        const compDate = r[6];
-                        const planFinish = r[7];
-                        const norm = r[8];
-                        const contractor = resolveCs(r, 11);
-                        const isComp = Boolean(compDate);
-
-                        const statusBadge = isComp
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                          : "bg-slate-100 text-slate-700 border-slate-300";
-
-                        return `
-                          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors">
-                            <td class="py-2 px-3 text-center text-slate-400 font-mono">${esc(no)}</td>
-                            <td class="py-2 px-3 font-semibold text-slate-800 font-mono">
-                              <button onclick="setCsFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600">
-                                ${esc(subNo)}
-                              </button>
-                            </td>
-                            <td class="py-2 px-3 font-mono font-bold text-slate-900">
-                              <button onclick="setCsFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600">
-                                ${esc(tagNo)}
-                              </button>
-                            </td>
-                            <td class="py-2 px-4 text-slate-700 max-w-xs truncate" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
-                            <td class="py-2 px-3 text-slate-700 font-medium">${esc(disc)}</td>
-                            <td class="py-2 px-3 font-mono font-bold text-indigo-700">${esc(csType)}</td>
-                            <td class="py-2 px-2 text-center">
-                              <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">
-                                ${isComp ? "Completed" : "Remaining"}
-                              </span>
-                            </td>
-                            <td class="py-2 px-3 font-mono text-[11px] ${isComp ? "text-emerald-700 font-semibold" : "text-slate-400"}">
-                              ${esc(compDate) || "-"}
-                            </td>
-                            <td class="py-2 px-3 font-mono text-[11px] text-slate-500">${esc(planFinish) || "-"}</td>
-                            <td class="py-2 px-2 text-center font-bold text-slate-700 font-mono">${esc(norm)}</td>
-                            <td class="py-2 px-3 text-slate-600">${esc(contractor)}</td>
-                            <td class="py-2 px-3 text-center">
-                              <button
-                                onclick="viewChecksheetDetail('${esc(tagNo)}', '${esc(csType)}')"
-                                class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-[11px] transition-colors"
-                              >
-                                Xem
-                              </button>
-                            </td>
-                          </tr>
-                        `;
-                      })
-                      .join("")
-              }
+            <tbody id="checksheet-tbody">
+              ${renderCsTableRows(pageRows, startIdx)}
             </tbody>
           </table>
         </div>
       </div>
     `;
+
+    initColumnResizers("checksheet-table", "checksheet");
   }
 
   window.setCsFilter = function (key, val) {
@@ -1146,7 +1363,7 @@
 
   window.setCsPage = function (p) {
     state.filters.checksheet.page = p;
-    renderTabContent();
+    renderCsTableOnly();
   };
 
   window.resetCsFilters = function () {
