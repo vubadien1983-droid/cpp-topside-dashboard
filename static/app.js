@@ -58,6 +58,7 @@
     filters: {
       punchlist: {
         search: "",
+        system: "ALL",
         subSystem: "ALL",
         tag: "",
         category: "ALL",
@@ -68,6 +69,7 @@
       },
       checksheet: {
         search: "",
+        system: "ALL",
         subSystem: "ALL",
         tag: "",
         status: "ALL", // 'ALL', 'Completed', 'Remaining'
@@ -677,9 +679,14 @@
     const parts = subNo.split("-");
     return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : subNo;
   }
+  const deriveSystemNo = inferSystemFromSub;
+  window.deriveSystemNo = deriveSystemNo;
+  window.inferSystemFromSub = inferSystemFromSub;
 
   function getOverviewStats() {
-    const sysFilter = state.overviewFilters.system || "ALL";
+    const rawSysFilter = (state.overviewFilters.system || "ALL").trim();
+    const sysFilter = rawSysFilter.toUpperCase();
+    const isSysFiltered = sysFilter !== "ALL" && sysFilter !== "";
     if (
       state.overviewCache &&
       state.overviewCache.dataRef === state.data &&
@@ -744,7 +751,10 @@
       const subNo = csPool[r[1]] || "";
       const sysNo = inferSystemFromSub(subNo);
       if (sysNo) sysSet.add(sysNo);
-      if (sysFilter !== "ALL" && sysNo !== sysFilter) continue;
+      if (isSysFiltered) {
+        const sysUpper = sysNo.toUpperCase();
+        if (sysUpper !== sysFilter && !sysUpper.includes(sysFilter)) continue;
+      }
 
       const disc = csPool[r[4]] || "Unassigned";
       const csType = (csPool[r[5]] || "").trim().toUpperCase();
@@ -773,7 +783,10 @@
       const sysNo = plPool[r[0]] || inferSystemFromSub(plPool[r[1]] || "");
       const subNo = plPool[r[1]] || "";
       if (sysNo) sysSet.add(sysNo);
-      if (sysFilter !== "ALL" && sysNo !== sysFilter) continue;
+      if (isSysFiltered) {
+        const sysUpper = sysNo.toUpperCase();
+        if (sysUpper !== sysFilter && !sysUpper.includes(sysFilter)) continue;
+      }
 
       const cat = (r[8] || "").toUpperCase();
       const status = plPool[r[9]] || "";
@@ -1006,10 +1019,36 @@
     }, 180);
   };
 
-  window.setOvSystem = function (sysVal) {
+  window.setOvSystem = function (sysVal, keepFocus) {
     state.overviewFilters.system = sysVal || "ALL";
     state.overviewCache = null;
     renderTabContent();
+    if (keepFocus) {
+      requestAnimationFrame(() => {
+        const inp = document.getElementById("ov-sys-search");
+        if (inp) {
+          inp.focus();
+          const len = inp.value.length;
+          inp.setSelectionRange(len, len);
+        }
+      });
+    }
+  };
+
+  let debounceOvSysTimer = null;
+  window.debounceOvSystemSearch = function (val) {
+    const clearBtn = document.getElementById("ov-sys-clear-btn");
+    if (clearBtn) {
+      if (val && val.trim() !== "" && val.trim().toUpperCase() !== "ALL") {
+        clearBtn.classList.remove("hidden");
+      } else {
+        clearBtn.classList.add("hidden");
+      }
+    }
+    clearTimeout(debounceOvSysTimer);
+    debounceOvSysTimer = setTimeout(() => {
+      setOvSystem(val, true);
+    }, 280);
   };
 
   window.setOvSubQuickFilter = function (qf) {
@@ -2004,6 +2043,8 @@
       : null;
     const scopeLabel = f.subSystem !== "ALL"
       ? `SubSystem: ${f.subSystem}`
+      : f.system && f.system !== "ALL"
+      ? `System: ${f.system}${subSet ? ` (${subSet.size} SubSystems)` : ""}`
       : isPlFiltered
       ? `Filtered Scope (${subSet.size} SubSystems)`
       : "All Disciplines & SubSystems";
@@ -2025,6 +2066,8 @@
       : null;
     const scopeLabel = f.subSystem !== "ALL"
       ? `SubSystem: ${f.subSystem}`
+      : f.system && f.system !== "ALL"
+      ? `System: ${f.system}${subSet ? ` (${subSet.size} SubSystems)` : ""}`
       : isCsFiltered
       ? `Filtered Scope (${subSet.size} SubSystems)`
       : "All Disciplines & SubSystems";
@@ -2149,19 +2192,49 @@
           </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="flex items-center gap-2">
-            <label class="text-xs sm:text-sm font-bold text-slate-700"><i class="fas fa-filter text-blue-600 mr-1.5"></i>System:</label>
-            <select
-              onchange="setOvSystem(this.value)"
-              class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
+        <div class="flex flex-wrap items-center gap-2.5">
+          <label class="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
+            <i class="fas fa-layer-group text-blue-600"></i>
+            <span>System (XXX-YY):</span>
+          </label>
+
+          <!-- System Search Box with Datalist & Clear -->
+          <div class="relative flex items-center">
+            <i class="fas fa-search absolute left-3 text-slate-400 text-xs"></i>
+            <input
+              type="text"
+              id="ov-sys-search"
+              list="ov-sys-datalist"
+              value="${sys === "ALL" ? "" : esc(sys)}"
+              oninput="debounceOvSystemSearch(this.value)"
+              placeholder="Search System (e.g. CPPT-66)..."
+              class="pl-8.5 pr-7 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm w-44 sm:w-56"
+            />
+            <button
+              id="ov-sys-clear-btn"
+              type="button"
+              onclick="document.getElementById('ov-sys-search').value = ''; setOvSystem('ALL')"
+              class="absolute right-2 text-slate-400 hover:text-slate-600 text-xs p-1 ${sys !== 'ALL' && sys ? '' : 'hidden'}"
+              title="Reset to All Systems"
             >
-              <option value="ALL">-- All Systems (${stats.allSystems.length}) --</option>
-              ${stats.allSystems
-                .map((s) => `<option value="${esc(s)}" ${sys === s ? "selected" : ""}>${esc(s)}</option>`)
-                .join("")}
-            </select>
+              <i class="fas fa-times-circle"></i>
+            </button>
+            <datalist id="ov-sys-datalist">
+              ${stats.allSystems.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("")}
+            </datalist>
           </div>
+
+          <!-- Quick Dropdown Selector -->
+          <select
+            id="ov-sys-select"
+            onchange="setOvSystem(this.value)"
+            class="px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
+          >
+            <option value="ALL">-- All Systems (${stats.allSystems.length}) --</option>
+            ${stats.allSystems
+              .map((s) => `<option value="${esc(s)}" ${sys === s ? "selected" : ""}>${esc(s)}</option>`)
+              .join("")}
+          </select>
         </div>
       </div>
 
@@ -2709,6 +2782,11 @@
         const disc = pool[r[15]] || "Unassigned";
 
         if (c.system !== "ALL" && sysNo !== c.system && inferSystemFromSub(subNo) !== c.system) return false;
+        if (tab.localFilters.system && tab.localFilters.system !== "ALL") {
+          const sysQ = tab.localFilters.system.trim().toUpperCase();
+          const rowSys = (sysNo || inferSystemFromSub(subNo)).toUpperCase();
+          if (rowSys !== sysQ && !rowSys.includes(sysQ)) return false;
+        }
         if (c.subSystem !== "ALL" && subNo !== c.subSystem) return false;
         if (c.discipline !== "ALL" && disc !== c.discipline) return false;
         if (c.category !== "ALL" && cat !== c.category.toUpperCase()) return false;
@@ -2727,6 +2805,11 @@
         const isComp = Boolean(pool[r[6]]);
 
         if (c.system !== "ALL" && sysNo !== c.system) return false;
+        if (tab.localFilters.system && tab.localFilters.system !== "ALL") {
+          const sysQ = tab.localFilters.system.trim().toUpperCase();
+          const rowSys = sysNo.toUpperCase();
+          if (rowSys !== sysQ && !rowSys.includes(sysQ)) return false;
+        }
         if (c.subSystem !== "ALL" && subNo !== c.subSystem) return false;
         if (c.discipline !== "ALL" && disc !== c.discipline) return false;
         if (c.itrGroup === "ITR-A" && !csType.endsWith("A")) return false;
@@ -2971,6 +3054,30 @@
     tab.limitCs = BATCH_SIZE;
     renderTabBar();
     renderTabContent();
+  };
+
+  window.setDetailFilter = function (tabId, key, val) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    tab.localFilters[key] = val;
+    tab.limit = BATCH_SIZE;
+    tab.limitPl = BATCH_SIZE;
+    tab.limitCs = BATCH_SIZE;
+    renderTabBar();
+    renderTabContent();
+  };
+
+  window.debounceDetailFilter = function (tabId, key, val) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    tab.localFilters[key] = val;
+    clearTimeout(debounceDetailTimer);
+    debounceDetailTimer = setTimeout(() => {
+      tab.limit = BATCH_SIZE;
+      tab.limitPl = BATCH_SIZE;
+      tab.limitCs = BATCH_SIZE;
+      renderTabContent();
+    }, 250);
   };
 
   let debounceDetailTimer = null;
@@ -3428,7 +3535,7 @@
         </div>
 
         <!-- Mini KPI Status Switchers + Search -->
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 items-center">
+        <div class="grid grid-cols-1 sm:grid-cols-2 ${c.system === "ALL" && c.subSystem === "ALL" ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-3 pt-2 border-t border-slate-100 items-center">
           <button
             onclick="setDetailStatusFilter('${esc(tab.id)}', 'ALL')"
             class="p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
@@ -3467,6 +3574,41 @@
             </div>
             <i class="fas fa-clock opacity-80"></i>
           </button>
+
+          ${
+            c.system === "ALL" && c.subSystem === "ALL"
+              ? `
+            <div class="relative">
+              <input
+                type="text"
+                list="detail-sys-list-${esc(tab.id)}"
+                value="${esc(tab.localFilters.system === "ALL" ? "" : tab.localFilters.system || "")}"
+                oninput="debounceDetailFilter('${esc(tab.id)}', 'system', this.value)"
+                placeholder="Search System (XXX-YY)..."
+                class="w-full pl-8 pr-7 py-2.5 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:border-blue-500"
+              />
+              <i class="fas fa-layer-group absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              ${
+                tab.localFilters.system && tab.localFilters.system !== "ALL"
+                  ? `
+                <button
+                  type="button"
+                  onclick="setDetailFilter('${esc(tab.id)}', 'system', 'ALL')"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1"
+                  title="Clear System filter"
+                >
+                  <i class="fas fa-times-circle"></i>
+                </button>
+              `
+                  : ""
+              }
+              <datalist id="detail-sys-list-${esc(tab.id)}">
+                ${(state.overviewCache ? state.overviewCache.stats.allSystems : []).map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("")}
+              </datalist>
+            </div>
+          `
+              : ""
+          }
 
           <div class="relative">
             <input
@@ -3576,6 +3718,7 @@
 
     const q = f.search.trim().toLowerCase();
     const tagQ = f.tag.trim().toLowerCase();
+    const sysQ = (f.system || "ALL").trim().toUpperCase();
     const subQ = f.subSystem;
     const catQ = f.category;
     const statusQ = f.status;
@@ -3583,6 +3726,11 @@
 
     return rows.filter((r) => {
       // 0: sys, 1: sub, 2: pl_no, 5: tag_no, 6: tag_desc, 8: cat, 9: status, 15: disc, 16: defect
+      if (sysQ !== "ALL" && sysQ !== "") {
+        const subNo = pool[r[1]] || "";
+        const rowSys = (pool[r[0]] || deriveSystemNo(subNo)).toUpperCase();
+        if (rowSys !== sysQ && !rowSys.includes(sysQ)) return false;
+      }
       if (subQ !== "ALL" && (pool[r[1]] || "") !== subQ) return false;
       if (catQ !== "ALL" && r[8] !== catQ) return false;
       if (statusQ !== "ALL" && (pool[r[9]] || "") !== statusQ) return false;
@@ -3602,6 +3750,16 @@
   window.debouncePlFilter = function (key, val) {
     state.filters.punchlist[key] = val;
     state.filters.punchlist.page = 1;
+    if (key === "system") {
+      const clearBtn = document.getElementById("pl-sys-clear-btn");
+      if (clearBtn) {
+        if (val && val.trim() !== "" && val.trim().toUpperCase() !== "ALL") {
+          clearBtn.classList.remove("hidden");
+        } else {
+          clearBtn.classList.add("hidden");
+        }
+      }
+    }
     clearTimeout(debouncePlTimer);
     debouncePlTimer = setTimeout(() => {
       renderPlTableOnly();
@@ -3827,9 +3985,41 @@
 
     updateContinuousScrollStatus("punchlist", state.limit.punchlist, filtered.length);
     updatePlKpiCards(filtered, totalAll);
+    updatePlSubSelectOptions();
     const plDiscWrap = document.getElementById("pl-disc-summary-wrap");
     if (plDiscWrap) plDiscWrap.innerHTML = buildPunchlistTabDisciplineSummary(filtered);
     renderTabBar();
+  }
+
+  function updatePlSubSelectOptions() {
+    const sel = document.getElementById("pl-subsystem-select");
+    if (!sel) return;
+    const activeSys = (state.filters.punchlist.system || "ALL").trim().toUpperCase();
+    const allRows = state.data.punchlist.rows;
+    const pool = state.data.punchlist.pool;
+    const allSubSet = new Set();
+    allRows.forEach((r) => {
+      const s = pool[r[1]] || "";
+      if (s) allSubSet.add(s);
+    });
+    const sortedSubs = Array.from(allSubSet)
+      .filter((s) => {
+        if (!activeSys || activeSys === "ALL") return true;
+        const sys = (deriveSystemNo(s) || "").toUpperCase();
+        return sys === activeSys || sys.includes(activeSys);
+      })
+      .sort();
+    const subDescMap = state.data.subsystems || {};
+    const curVal = state.filters.punchlist.subSystem;
+    sel.innerHTML = `
+      <option value="ALL">-- All SubSystems (${sortedSubs.length}) --</option>
+      ${sortedSubs
+        .map((s) => {
+          const desc = subDescMap[s] ? ` - ${subDescMap[s]}` : "";
+          return `<option value="${esc(s)}" ${curVal === s ? "selected" : ""}>${esc(s)}${esc(desc)}</option>`;
+        })
+        .join("")}
+    `;
   }
 
   function renderPunchlistTab(container) {
@@ -3857,17 +4047,39 @@
 
     const pctClosed = total > 0 ? ((closed / total) * 100).toFixed(1) : "0.0";
 
-    // All available subsystems and disciplines for dropdown options
+    // All available subsystems, systems, and disciplines for dropdown options
     const allSubSet = new Set();
     const allDiscSet = new Set();
+    const allSysMap = new Map();
     allRows.forEach((r) => {
       const d = pool[r[15]] || "";
       if (d) allDiscSet.add(d);
       const s = pool[r[1]] || "";
-      if (s) allSubSet.add(s);
+      if (s) {
+        allSubSet.add(s);
+        const sys = pool[r[0]] || deriveSystemNo(s);
+        if (sys) {
+          if (!allSysMap.has(sys)) allSysMap.set(sys, new Set());
+          allSysMap.get(sys).add(s);
+        }
+      }
     });
 
-    const sortedSubs = Array.from(allSubSet).sort();
+    const sortedSystems = Array.from(allSysMap.keys())
+      .sort()
+      .map((code) => ({
+        code,
+        subCount: allSysMap.get(code).size,
+      }));
+
+    const activeSys = (f.system || "ALL").trim().toUpperCase();
+    const sortedSubs = Array.from(allSubSet)
+      .filter((s) => {
+        if (!activeSys || activeSys === "ALL") return true;
+        const sys = (deriveSystemNo(s) || "").toUpperCase();
+        return sys === activeSys || sys.includes(activeSys);
+      })
+      .sort();
     const subDescMap = state.data.subsystems || {};
     const sortedDiscs = Array.from(allDiscSet).sort();
 
@@ -4003,13 +4215,45 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <!-- Filter System (XXX-YY) -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">
+              <i class="fas fa-layer-group text-blue-600 mr-1"></i> System (XXX-YY):
+            </label>
+            <div class="relative">
+              <input
+                type="text"
+                id="pl-system-search"
+                list="pl-system-list"
+                value="${esc(f.system === "ALL" ? "" : f.system)}"
+                oninput="debouncePlFilter('system', this.value)"
+                placeholder="Search System (e.g. CPPT-66)..."
+                class="w-full pl-8 pr-7 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:border-blue-500"
+              />
+              <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <button
+                id="pl-sys-clear-btn"
+                type="button"
+                onclick="document.getElementById('pl-system-search').value = ''; setPlFilter('system', 'ALL')"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 ${f.system && f.system !== 'ALL' ? '' : 'hidden'}"
+                title="Clear System filter"
+              >
+                <i class="fas fa-times-circle"></i>
+              </button>
+              <datalist id="pl-system-list">
+                ${sortedSystems.map((s) => `<option value="${esc(s.code)}">${esc(s.code)} (${s.subCount} SubSystems)</option>`).join("")}
+              </datalist>
+            </div>
+          </div>
+
           <!-- Filter SubSystemNo -->
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">
-              <i class="fas fa-sitemap text-blue-600 mr-1"></i> SubSystem No:
+              <i class="fas fa-sitemap text-indigo-600 mr-1"></i> SubSystem No:
             </label>
             <select
+              id="pl-subsystem-select"
               onchange="setPlFilter('subSystem', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
             >
@@ -4207,6 +4451,16 @@
   window.setPlFilter = function (key, val) {
     state.filters.punchlist[key] = val;
     state.filters.punchlist.page = 1;
+    if (key === "system" && val !== "ALL") {
+      const currentSub = state.filters.punchlist.subSystem;
+      if (currentSub !== "ALL") {
+        const sys = (deriveSystemNo(currentSub) || "").toUpperCase();
+        const vUpper = val.trim().toUpperCase();
+        if (sys !== vUpper && !sys.includes(vUpper)) {
+          state.filters.punchlist.subSystem = "ALL";
+        }
+      }
+    }
     if (state.activeTab !== "punchlist") state.activeTab = "punchlist";
     renderTabBar();
     renderTabContent();
@@ -4220,6 +4474,7 @@
   window.resetPlFilters = function () {
     state.filters.punchlist = {
       search: "",
+      system: "ALL",
       subSystem: "ALL",
       tag: "",
       category: "ALL",
@@ -4318,6 +4573,7 @@
 
     const q = f.search.trim().toLowerCase();
     const tagQ = f.tag.trim().toLowerCase();
+    const sysQ = (f.system || "ALL").trim().toUpperCase();
     const subQ = f.subSystem;
     const statusQ = f.status;
     const discQ = f.discipline;
@@ -4326,6 +4582,11 @@
 
     return rows.filter((r) => {
       // 0: no, 1: sub, 2: tag_no, 3: tag_desc, 4: disc, 5: cs_type, 6: comp_date, 8: norm
+      if (sysQ !== "ALL" && sysQ !== "") {
+        const subNo = pool[r[1]] || "";
+        const rowSys = (deriveSystemNo(subNo) || "").toUpperCase();
+        if (rowSys !== sysQ && !rowSys.includes(sysQ)) return false;
+      }
       if (subQ !== "ALL" && (pool[r[1]] || "") !== subQ) return false;
       if (discQ !== "ALL" && (pool[r[4]] || "") !== discQ) return false;
       if (typeQ !== "ALL" && (pool[r[5]] || "") !== typeQ) return false;
@@ -4353,6 +4614,16 @@
   window.debounceCsFilter = function (key, val) {
     state.filters.checksheet[key] = val;
     state.filters.checksheet.page = 1;
+    if (key === "system") {
+      const clearBtn = document.getElementById("cs-sys-clear-btn");
+      if (clearBtn) {
+        if (val && val.trim() !== "" && val.trim().toUpperCase() !== "ALL") {
+          clearBtn.classList.remove("hidden");
+        } else {
+          clearBtn.classList.add("hidden");
+        }
+      }
+    }
     clearTimeout(debounceCsTimer);
     debounceCsTimer = setTimeout(() => {
       renderCsTableOnly();
@@ -4514,9 +4785,41 @@
 
     updateContinuousScrollStatus("checksheet", state.limit.checksheet, filtered.length);
     updateCsKpiCards(filtered, totalAll);
+    updateCsSubSelectOptions();
     const csDiscWrap = document.getElementById("cs-disc-summary-wrap");
     if (csDiscWrap) csDiscWrap.innerHTML = buildChecksheetTabDisciplineSummary(filtered);
     renderTabBar();
+  }
+
+  function updateCsSubSelectOptions() {
+    const sel = document.getElementById("cs-subsystem-select");
+    if (!sel) return;
+    const activeSys = (state.filters.checksheet.system || "ALL").trim().toUpperCase();
+    const allRows = state.data.checksheet.rows;
+    const pool = state.data.checksheet.pool;
+    const allSubSet = new Set();
+    allRows.forEach((r) => {
+      const s = pool[r[1]] || "";
+      if (s) allSubSet.add(s);
+    });
+    const sortedSubs = Array.from(allSubSet)
+      .filter((s) => {
+        if (!activeSys || activeSys === "ALL") return true;
+        const sys = (deriveSystemNo(s) || "").toUpperCase();
+        return sys === activeSys || sys.includes(activeSys);
+      })
+      .sort();
+    const subDescMap = state.data.subsystems || {};
+    const curVal = state.filters.checksheet.subSystem;
+    sel.innerHTML = `
+      <option value="ALL">-- All SubSystems (${sortedSubs.length}) --</option>
+      ${sortedSubs
+        .map((s) => {
+          const desc = subDescMap[s] ? ` - ${subDescMap[s]}` : "";
+          return `<option value="${esc(s)}" ${curVal === s ? "selected" : ""}>${esc(s)}${esc(desc)}</option>`;
+        })
+        .join("")}
+    `;
   }
 
   function renderChecksheetTab(container) {
@@ -4564,20 +4867,42 @@
     const pctDone = total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
     const pctNorm = totalNorm > 0 ? ((compNorm / totalNorm) * 100).toFixed(1) : "0.0";
 
-    // All available subsystems and disciplines for dropdown options
+    // All available subsystems, systems, and disciplines for dropdown options
     const allSubSet = new Set();
     const allDiscSet = new Set();
     const allTypeSet = new Set();
+    const allSysMap = new Map();
     allRows.forEach((r) => {
       const d = pool[r[4]] || "";
       if (d) allDiscSet.add(d);
       const s = pool[r[1]] || "";
-      if (s) allSubSet.add(s);
+      if (s) {
+        allSubSet.add(s);
+        const sys = deriveSystemNo(s);
+        if (sys) {
+          if (!allSysMap.has(sys)) allSysMap.set(sys, new Set());
+          allSysMap.get(sys).add(s);
+        }
+      }
       const t = pool[r[5]] || "";
       if (t) allTypeSet.add(t);
     });
 
-    const sortedSubs = Array.from(allSubSet).sort();
+    const sortedSystems = Array.from(allSysMap.keys())
+      .sort()
+      .map((code) => ({
+        code,
+        subCount: allSysMap.get(code).size,
+      }));
+
+    const activeSys = (f.system || "ALL").trim().toUpperCase();
+    const sortedSubs = Array.from(allSubSet)
+      .filter((s) => {
+        if (!activeSys || activeSys === "ALL") return true;
+        const sys = (deriveSystemNo(s) || "").toUpperCase();
+        return sys === activeSys || sys.includes(activeSys);
+      })
+      .sort();
     const subDescMap = state.data.subsystems || {};
     const sortedDiscs = Array.from(allDiscSet).sort();
 
@@ -4712,13 +5037,45 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <!-- Filter System (XXX-YY) -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">
+              <i class="fas fa-layer-group text-blue-600 mr-1"></i> System (XXX-YY):
+            </label>
+            <div class="relative">
+              <input
+                type="text"
+                id="cs-system-search"
+                list="cs-system-list"
+                value="${esc(f.system === "ALL" ? "" : f.system)}"
+                oninput="debounceCsFilter('system', this.value)"
+                placeholder="Search System (e.g. CPPT-66)..."
+                class="w-full pl-8 pr-7 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:border-blue-500"
+              />
+              <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <button
+                id="cs-sys-clear-btn"
+                type="button"
+                onclick="document.getElementById('cs-system-search').value = ''; setCsFilter('system', 'ALL')"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 ${f.system && f.system !== 'ALL' ? '' : 'hidden'}"
+                title="Clear System filter"
+              >
+                <i class="fas fa-times-circle"></i>
+              </button>
+              <datalist id="cs-system-list">
+                ${sortedSystems.map((s) => `<option value="${esc(s.code)}">${esc(s.code)} (${s.subCount} SubSystems)</option>`).join("")}
+              </datalist>
+            </div>
+          </div>
+
           <!-- Filter SubSystemNo -->
           <div>
             <label class="block text-[11px] font-bold text-slate-700 mb-1">
-              <i class="fas fa-sitemap text-blue-600 mr-1"></i> SubSystem No:
+              <i class="fas fa-sitemap text-indigo-600 mr-1"></i> SubSystem No:
             </label>
             <select
+              id="cs-subsystem-select"
               onchange="setCsFilter('subSystem', this.value)"
               class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
             >
@@ -4940,6 +5297,16 @@
   window.setCsFilter = function (key, val) {
     state.filters.checksheet[key] = val;
     state.filters.checksheet.page = 1;
+    if (key === "system" && val !== "ALL") {
+      const currentSub = state.filters.checksheet.subSystem;
+      if (currentSub !== "ALL") {
+        const sys = (deriveSystemNo(currentSub) || "").toUpperCase();
+        const vUpper = val.trim().toUpperCase();
+        if (sys !== vUpper && !sys.includes(vUpper)) {
+          state.filters.checksheet.subSystem = "ALL";
+        }
+      }
+    }
     if (state.activeTab !== "checksheet") state.activeTab = "checksheet";
     renderTabBar();
     renderTabContent();
@@ -4953,6 +5320,7 @@
   window.resetCsFilters = function () {
     state.filters.checksheet = {
       search: "",
+      system: "ALL",
       subSystem: "ALL",
       tag: "",
       status: "ALL",
