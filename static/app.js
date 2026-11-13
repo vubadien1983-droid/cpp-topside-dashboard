@@ -34,8 +34,10 @@
       subQuickFilter: "ALL", // 'ALL', 'OPEN_PUNCH_A', 'OPEN_PUNCH', 'REM_ITR_A', 'REM_ITR_B', 'DONE_100'
       itrBarMetric: "ALL_ITR", // 'ALL_ITR', 'ITR-A', 'ITR-B'
       punchBarMetric: "ALL_PUNCH", // 'ALL_PUNCH', 'PUNCH-A', 'PUNCH-B', 'PUNCH-C'
+      itrLineFocus: "A_B", // 'A_B', 'ITR-A', 'ITR-B', 'TOTAL'
       itrLineGran: "week", // 'week', 'month', 'day'
       itrLineMode: "pct", // 'pct' | 'count'
+      punchLineFocus: "A_B_C", // 'A_B_C', 'PUNCH-A', 'PUNCH-B', 'PUNCH-C', 'ALL'
       punchLineGran: "week", // 'week', 'month', 'day'
       punchLineMode: "pct", // 'pct' | 'count'
     },
@@ -1031,6 +1033,17 @@
     renderPunchDisciplineBarChart(getOverviewStats());
   };
 
+  window.setOvItrLineFocus = function (focus) {
+    state.overviewFilters.itrLineFocus = focus;
+    document.querySelectorAll("[data-ov-itr-focus]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-itr-focus") === focus;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-indigo-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderItrLineChart();
+  };
+
   window.setOvItrLineGran = function (gran) {
     state.overviewFilters.itrLineGran = gran;
     document.querySelectorAll("[data-ov-itr-gran]").forEach((btn) => {
@@ -1051,6 +1064,17 @@
       }`;
     });
     renderItrLineChart();
+  };
+
+  window.setOvPunchLineFocus = function (focus) {
+    state.overviewFilters.punchLineFocus = focus;
+    document.querySelectorAll("[data-ov-punch-focus]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-punch-focus") === focus;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-amber-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderPunchLineChart();
   };
 
   window.setOvPunchLineGran = function (gran) {
@@ -1115,17 +1139,78 @@
     };
   }
 
+  /**
+   * Build cumulative Plan (Bar) vs Actual (Line) timeline points, stopping Actual lines
+   * at maxActualKey while allowing Plan bars to extend across future scheduled periods.
+   */
+  function buildMixedTimeline(bucketMap, maxActualKey, keys, totals, granularity) {
+    const sortedAll = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    const cumAct = {};
+    const cumPlan = {};
+    keys.forEach((k) => {
+      cumAct[k] = 0;
+      cumPlan[k] = 0;
+    });
+
+    const fullPoints = sortedAll.map((b) => {
+      const isFutureActual = !maxActualKey || b.key > maxActualKey;
+      const point = {
+        key: b.key,
+        label: b.label,
+        deltaAct: {},
+        deltaPlan: {},
+        cumAct: {},
+        cumPlan: {},
+        pctAct: {},
+        pctPlan: {},
+      };
+      keys.forEach((k) => {
+        const dA = b.act[k] || 0;
+        const dP = b.plan[k] || 0;
+        cumAct[k] += dA;
+        cumPlan[k] += dP;
+        const tot = totals[k] || 0;
+        point.deltaAct[k] = isFutureActual ? null : dA;
+        point.deltaPlan[k] = dP;
+        point.cumAct[k] = isFutureActual ? null : cumAct[k];
+        point.cumPlan[k] = cumPlan[k];
+        point.pctAct[k] = isFutureActual || tot <= 0 ? null : Number(((cumAct[k] / tot) * 100).toFixed(1));
+        point.pctPlan[k] = tot > 0 ? Number(((cumPlan[k] / tot) * 100).toFixed(1)) : null;
+      });
+      return point;
+    });
+
+    let points = fullPoints;
+    if (granularity === "day" && fullPoints.length > 45) {
+      let maxIdx = maxActualKey ? fullPoints.findIndex((p) => p.key === maxActualKey) : fullPoints.length - 1;
+      if (maxIdx < 0) maxIdx = fullPoints.length - 1;
+      let endIdx = Math.min(fullPoints.length, maxIdx + 11);
+      const startIdx = Math.max(0, endIdx - 45);
+      if (endIdx - startIdx < 45 && endIdx < fullPoints.length) {
+        endIdx = Math.min(fullPoints.length, startIdx + 45);
+      }
+      points = fullPoints.slice(startIdx, endIdx);
+    }
+    return { points, totals, maxActualKey };
+  }
+
   function computeChecksheetTimeline(sysFilter, granularity) {
     const bucketMap = new Map();
     const ensureBucket = (key, label) => {
       let b = bucketMap.get(key);
       if (!b) {
-        b = { key, label, itrA: 0, itrB: 0 };
+        b = {
+          key,
+          label,
+          act: { itrA: 0, itrB: 0, all: 0 },
+          plan: { itrA: 0, itrB: 0, all: 0 },
+        };
         bucketMap.set(key, b);
       }
       return b;
     };
-    let totA = 0, totB = 0;
+
+    let totA = 0, totB = 0, maxActualKey = "";
     const csRows = state.data.checksheet.rows;
     const csPool = state.data.checksheet.pool;
     for (let i = 0; i < csRows.length; i++) {
@@ -1139,32 +1224,37 @@
       else if (isB) totB++;
       else continue;
 
-      const compStr = csPool[r[6]] || "";
-      if (!compStr) continue;
-      const bk = dateToBucket(parseDdMmYyyyParts(compStr), granularity);
-      if (!bk) continue;
-      const obj = ensureBucket(bk.key, bk.label);
-      if (isA) obj.itrA++;
-      else obj.itrB++;
+      const actStr = r[6] != null ? csPool[r[6]] || "" : "";
+      if (actStr) {
+        const bkAct = dateToBucket(parseDdMmYyyyParts(actStr), granularity);
+        if (bkAct) {
+          const obj = ensureBucket(bkAct.key, bkAct.label);
+          if (isA) obj.act.itrA++;
+          else obj.act.itrB++;
+          obj.act.all++;
+          if (bkAct.key > maxActualKey) maxActualKey = bkAct.key;
+        }
+      }
+
+      const planStr = r[7] != null ? csPool[r[7]] || "" : "";
+      if (planStr) {
+        const bkPlan = dateToBucket(parseDdMmYyyyParts(planStr), granularity);
+        if (bkPlan) {
+          const obj = ensureBucket(bkPlan.key, bkPlan.label);
+          if (isA) obj.plan.itrA++;
+          else obj.plan.itrB++;
+          obj.plan.all++;
+        }
+      }
     }
 
-    const sortedAll = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-    let cumA = 0, cumB = 0;
-    const fullPoints = sortedAll.map((b) => {
-      cumA += b.itrA;
-      cumB += b.itrB;
-      return {
-        label: b.label,
-        delta: { itrA: b.itrA, itrB: b.itrB },
-        cum: { itrA: cumA, itrB: cumB },
-        pct: {
-          itrA: totA > 0 ? Number(((cumA / totA) * 100).toFixed(1)) : null,
-          itrB: totB > 0 ? Number(((cumB / totB) * 100).toFixed(1)) : null,
-        },
-      };
-    });
-    const points = granularity === "day" && fullPoints.length > 45 ? fullPoints.slice(-45) : fullPoints;
-    return { points, totals: { itrA: totA, itrB: totB } };
+    return buildMixedTimeline(
+      bucketMap,
+      maxActualKey,
+      ["itrA", "itrB", "all"],
+      { itrA: totA, itrB: totB, all: totA + totB },
+      granularity
+    );
   }
 
   function computePunchTimeline(sysFilter, granularity) {
@@ -1172,12 +1262,18 @@
     const ensureBucket = (key, label) => {
       let b = bucketMap.get(key);
       if (!b) {
-        b = { key, label, punchA: 0, punchB: 0, punchC: 0 };
+        b = {
+          key,
+          label,
+          act: { punchA: 0, punchB: 0, punchC: 0, all: 0 },
+          plan: { punchA: 0, punchB: 0, punchC: 0, all: 0 },
+        };
         bucketMap.set(key, b);
       }
       return b;
     };
-    let totA = 0, totB = 0, totC = 0;
+
+    let totA = 0, totB = 0, totC = 0, maxActualKey = "";
     const plRows = state.data.punchlist.rows;
     const plPool = state.data.punchlist.pool;
     for (let i = 0; i < plRows.length; i++) {
@@ -1192,35 +1288,39 @@
       else if (cat === "C") totC++;
       else continue;
 
-      if (status !== "Closed") continue;
-      const closedStr = plPool[r[11]] || "";
-      const bk = dateToBucket(parseDdMmYyyyParts(closedStr), granularity);
-      if (!bk) continue;
-      const obj = ensureBucket(bk.key, bk.label);
-      if (cat === "A") obj.punchA++;
-      else if (cat === "B") obj.punchB++;
-      else obj.punchC++;
+      const keyName = cat === "A" ? "punchA" : cat === "B" ? "punchB" : "punchC";
+
+      if (status === "Closed") {
+        const closedStr = r[11] != null ? plPool[r[11]] || "" : "";
+        if (closedStr) {
+          const bkAct = dateToBucket(parseDdMmYyyyParts(closedStr), granularity);
+          if (bkAct) {
+            const obj = ensureBucket(bkAct.key, bkAct.label);
+            obj.act[keyName]++;
+            obj.act.all++;
+            if (bkAct.key > maxActualKey) maxActualKey = bkAct.key;
+          }
+        }
+      }
+
+      const planStr = r[21] != null ? plPool[r[21]] || "" : "";
+      if (planStr) {
+        const bkPlan = dateToBucket(parseDdMmYyyyParts(planStr), granularity);
+        if (bkPlan) {
+          const obj = ensureBucket(bkPlan.key, bkPlan.label);
+          obj.plan[keyName]++;
+          obj.plan.all++;
+        }
+      }
     }
 
-    const sortedAll = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-    let cumA = 0, cumB = 0, cumC = 0;
-    const fullPoints = sortedAll.map((b) => {
-      cumA += b.punchA;
-      cumB += b.punchB;
-      cumC += b.punchC;
-      return {
-        label: b.label,
-        delta: { punchA: b.punchA, punchB: b.punchB, punchC: b.punchC },
-        cum: { punchA: cumA, punchB: cumB, punchC: cumC },
-        pct: {
-          punchA: totA > 0 ? Number(((cumA / totA) * 100).toFixed(1)) : null,
-          punchB: totB > 0 ? Number(((cumB / totB) * 100).toFixed(1)) : null,
-          punchC: totC > 0 ? Number(((cumC / totC) * 100).toFixed(1)) : null,
-        },
-      };
-    });
-    const points = granularity === "day" && fullPoints.length > 45 ? fullPoints.slice(-45) : fullPoints;
-    return { points, totals: { punchA: totA, punchB: totB, punchC: totC } };
+    return buildMixedTimeline(
+      bucketMap,
+      maxActualKey,
+      ["punchA", "punchB", "punchC", "all"],
+      { punchA: totA, punchB: totB, punchC: totC, all: totA + totB + totC },
+      granularity
+    );
   }
 
   function renderItrDisciplineBarChart(stats) {
@@ -1304,71 +1404,192 @@
     });
   }
 
-  function renderItrLineChart() {
-    if (!window.Chart) return;
-    const canvas = document.getElementById("chart-ov-itr-line");
-    if (!canvas) return;
-    if (state.charts.ovItrLine) state.charts.ovItrLine.destroy();
+  /**
+   * Render a combined Plan (Bar) + Actual Progress (Line) Chart.js instance.
+   */
+  function renderMixedPlanActualChart({ canvas, chartKey, tl, seriesDefs, mode }) {
+    if (!window.Chart || !canvas) return;
+    if (state.charts[chartKey]) state.charts[chartKey].destroy();
 
-    const sys = state.overviewFilters.system || "ALL";
-    const gran = state.overviewFilters.itrLineGran || "week";
-    const mode = state.overviewFilters.itrLineMode || "pct";
-    const tl = computeChecksheetTimeline(sys, gran);
     const pts = tl.points;
+    const datasets = [];
+    const datasetMeta = [];
 
-    const defs = [
-      { key: "itrA", label: "ITR-A (Pre-Comm)", color: "#2563EB" },
-      { key: "itrB", label: "ITR-B (Comm)", color: "#7C3AED" },
-    ];
+    // Actual Progress Lines rendered on top of Plan Bars (order: 1 < order: 2)
+    seriesDefs.forEach((s) => {
+      datasets.push({
+        type: "line",
+        order: 1,
+        label: s.actualLabel,
+        data: pts.map((p) => (mode === "pct" ? p.pctAct[s.key] : p.cumAct[s.key])),
+        borderColor: s.lineColor,
+        backgroundColor: s.lineColor + "1A",
+        borderWidth: 2.8,
+        tension: 0.22,
+        spanGaps: false,
+        pointRadius: pts.length > 40 ? 1.5 : 3.2,
+        pointHoverRadius: 5,
+        fill: false,
+      });
+      datasetMeta.push({ key: s.key, kind: "actual", label: s.actualLabel, groupLabel: s.groupLabel });
+    });
 
-    state.charts.ovItrLine = new Chart(canvas, {
-      type: "line",
+    // Cumulative Planned Bars behind Actual Lines (order: 2)
+    seriesDefs.forEach((s) => {
+      datasets.push({
+        type: "bar",
+        order: 2,
+        label: s.planLabel,
+        data: pts.map((p) => (mode === "pct" ? p.pctPlan[s.key] : p.cumPlan[s.key])),
+        backgroundColor: s.barBg,
+        borderColor: s.barBorder,
+        borderWidth: 1,
+        borderRadius: 3,
+        barPercentage: 0.86,
+        categoryPercentage: 0.78,
+      });
+      datasetMeta.push({ key: s.key, kind: "plan", label: s.planLabel, groupLabel: s.groupLabel });
+    });
+
+    state.charts[chartKey] = new Chart(canvas, {
+      type: "bar",
       data: {
         labels: pts.map((p) => p.label),
-        datasets: defs.map((s) => ({
-          label: s.label,
-          data: pts.map((p) => (mode === "pct" ? p.pct[s.key] : p.cum[s.key])),
-          borderColor: s.color,
-          backgroundColor: s.color + "1A",
-          borderWidth: 2.8,
-          tension: 0.25,
-          spanGaps: true,
-          pointRadius: pts.length > 35 ? 2 : 3.5,
-          pointHoverRadius: 5,
-          fill: true,
-        })),
+        datasets,
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: { position: "top", labels: { boxWidth: 14, usePointStyle: true, font: { size: 11, weight: "bold" } } },
+          legend: {
+            position: "top",
+            labels: { boxWidth: 12, usePointStyle: true, font: { size: 11, weight: "bold" } },
+          },
           tooltip: {
             callbacks: {
               label: (ctx) => {
-                const s = defs[ctx.datasetIndex];
+                const meta = datasetMeta[ctx.datasetIndex];
                 const pt = pts[ctx.dataIndex];
-                if (!pt || !s) return "";
-                const tot = tl.totals[s.key];
-                if (!tot) return `${s.label}: No items`;
-                const cum = pt.cum[s.key];
-                const delta = pt.delta[s.key];
-                return `${s.label}: ${pt.pct[s.key]}% (${cum.toLocaleString()}/${tot.toLocaleString()})${delta > 0 ? ` (+${delta.toLocaleString()})` : ""}`;
+                if (!pt || !meta) return "";
+                const tot = tl.totals[meta.key] || 0;
+                if (!tot) return `${meta.label}: No items`;
+                if (meta.kind === "actual") {
+                  const cum = pt.cumAct[meta.key];
+                  if (cum == null) return `${meta.label}: — (future period)`;
+                  const pct = pt.pctAct[meta.key];
+                  const delta = pt.deltaAct[meta.key] || 0;
+                  return `${meta.label}: ${pct}% (${cum.toLocaleString()}/${tot.toLocaleString()})${delta > 0 ? ` (+${delta.toLocaleString()})` : ""}`;
+                }
+                const cumP = pt.cumPlan[meta.key] || 0;
+                const pctP = pt.pctPlan[meta.key] ?? 0;
+                const deltaP = pt.deltaPlan[meta.key] || 0;
+                return `${meta.label}: ${pctP}% (${cumP.toLocaleString()}/${tot.toLocaleString()})${deltaP > 0 ? ` (+${deltaP.toLocaleString()})` : ""}`;
+              },
+              afterBody: (items) => {
+                if (!items || !items.length) return [];
+                const pt = pts[items[0].dataIndex];
+                if (!pt) return [];
+                const lines = [];
+                seriesDefs.forEach((s) => {
+                  const tot = tl.totals[s.key] || 0;
+                  const cumA = pt.cumAct[s.key];
+                  const cumP = pt.cumPlan[s.key];
+                  if (!tot || cumA == null || cumP == null) return;
+                  const diffCnt = cumA - cumP;
+                  const diffPct = ((diffCnt / tot) * 100).toFixed(1);
+                  const sign = diffCnt > 0 ? "+" : "";
+                  lines.push(`Variance (${s.groupLabel}): ${sign}${diffPct}% (${sign}${diffCnt.toLocaleString()} items)`);
+                });
+                return lines;
               },
             },
           },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 10 } } },
+          x: {
+            grid: { display: false },
+            ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 10 } },
+          },
           y: {
             beginAtZero: true,
             max: mode === "pct" ? 100 : undefined,
-            ticks: { font: { size: 10 }, callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()) },
+            ticks: {
+              font: { size: 10 },
+              callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()),
+            },
           },
         },
       },
     });
+  }
+
+  const ITR_MIXED_SERIES = {
+    "A_B": [
+      {
+        key: "itrA",
+        groupLabel: "ITR-A",
+        planLabel: "ITR-A Plan (Bar)",
+        actualLabel: "ITR-A Actual (Line)",
+        barBg: "rgba(59, 130, 246, 0.24)",
+        barBorder: "rgba(37, 99, 235, 0.55)",
+        lineColor: "#1D4ED8",
+      },
+      {
+        key: "itrB",
+        groupLabel: "ITR-B",
+        planLabel: "ITR-B Plan (Bar)",
+        actualLabel: "ITR-B Actual (Line)",
+        barBg: "rgba(139, 92, 246, 0.24)",
+        barBorder: "rgba(124, 58, 237, 0.55)",
+        lineColor: "#6D28D9",
+      },
+    ],
+    "ITR-A": [
+      {
+        key: "itrA",
+        groupLabel: "ITR-A",
+        planLabel: "ITR-A Plan (Bar)",
+        actualLabel: "ITR-A Actual (Line)",
+        barBg: "rgba(59, 130, 246, 0.26)",
+        barBorder: "rgba(37, 99, 235, 0.6)",
+        lineColor: "#1D4ED8",
+      },
+    ],
+    "ITR-B": [
+      {
+        key: "itrB",
+        groupLabel: "ITR-B",
+        planLabel: "ITR-B Plan (Bar)",
+        actualLabel: "ITR-B Actual (Line)",
+        barBg: "rgba(139, 92, 246, 0.26)",
+        barBorder: "rgba(124, 58, 237, 0.6)",
+        lineColor: "#6D28D9",
+      },
+    ],
+    "TOTAL": [
+      {
+        key: "all",
+        groupLabel: "All ITR",
+        planLabel: "All ITR Plan (Bar)",
+        actualLabel: "All ITR Actual (Line)",
+        barBg: "rgba(15, 118, 110, 0.24)",
+        barBorder: "rgba(13, 148, 136, 0.55)",
+        lineColor: "#0F766E",
+      },
+    ],
+  };
+
+  function renderItrLineChart() {
+    const canvas = document.getElementById("chart-ov-itr-line");
+    if (!canvas) return;
+    const sys = state.overviewFilters.system || "ALL";
+    const focus = state.overviewFilters.itrLineFocus || "A_B";
+    const gran = state.overviewFilters.itrLineGran || "week";
+    const mode = state.overviewFilters.itrLineMode || "pct";
+    const tl = computeChecksheetTimeline(sys, gran);
+    const seriesDefs = ITR_MIXED_SERIES[focus] || ITR_MIXED_SERIES.A_B;
+    renderMixedPlanActualChart({ canvas, chartKey: "ovItrLine", tl, seriesDefs, mode });
   }
 
   function renderPunchDisciplineBarChart(stats) {
@@ -1453,72 +1674,92 @@
     });
   }
 
+  const PUNCH_MIXED_SERIES = {
+    "A_B_C": [
+      {
+        key: "punchA",
+        groupLabel: "Cat A",
+        planLabel: "Cat A Plan (Bar)",
+        actualLabel: "Cat A Actual (Line)",
+        barBg: "rgba(225, 29, 72, 0.22)",
+        barBorder: "rgba(225, 29, 72, 0.55)",
+        lineColor: "#BE123C",
+      },
+      {
+        key: "punchB",
+        groupLabel: "Cat B",
+        planLabel: "Cat B Plan (Bar)",
+        actualLabel: "Cat B Actual (Line)",
+        barBg: "rgba(217, 119, 6, 0.22)",
+        barBorder: "rgba(217, 119, 6, 0.55)",
+        lineColor: "#B45309",
+      },
+      {
+        key: "punchC",
+        groupLabel: "Cat C",
+        planLabel: "Cat C Plan (Bar)",
+        actualLabel: "Cat C Actual (Line)",
+        barBg: "rgba(2, 132, 199, 0.22)",
+        barBorder: "rgba(2, 132, 199, 0.55)",
+        lineColor: "#0369A1",
+      },
+    ],
+    "PUNCH-A": [
+      {
+        key: "punchA",
+        groupLabel: "Cat A",
+        planLabel: "Cat A Plan (Bar)",
+        actualLabel: "Cat A Actual (Line)",
+        barBg: "rgba(225, 29, 72, 0.26)",
+        barBorder: "rgba(225, 29, 72, 0.6)",
+        lineColor: "#BE123C",
+      },
+    ],
+    "PUNCH-B": [
+      {
+        key: "punchB",
+        groupLabel: "Cat B",
+        planLabel: "Cat B Plan (Bar)",
+        actualLabel: "Cat B Actual (Line)",
+        barBg: "rgba(217, 119, 6, 0.26)",
+        barBorder: "rgba(217, 119, 6, 0.6)",
+        lineColor: "#B45309",
+      },
+    ],
+    "PUNCH-C": [
+      {
+        key: "punchC",
+        groupLabel: "Cat C",
+        planLabel: "Cat C Plan (Bar)",
+        actualLabel: "Cat C Actual (Line)",
+        barBg: "rgba(2, 132, 199, 0.26)",
+        barBorder: "rgba(2, 132, 199, 0.6)",
+        lineColor: "#0369A1",
+      },
+    ],
+    "ALL": [
+      {
+        key: "all",
+        groupLabel: "All Punch",
+        planLabel: "All Punch Plan (Bar)",
+        actualLabel: "All Punch Actual (Line)",
+        barBg: "rgba(100, 116, 139, 0.25)",
+        barBorder: "rgba(71, 85, 105, 0.55)",
+        lineColor: "#E11D48",
+      },
+    ],
+  };
+
   function renderPunchLineChart() {
-    if (!window.Chart) return;
     const canvas = document.getElementById("chart-ov-punch-line");
     if (!canvas) return;
-    if (state.charts.ovPunchLine) state.charts.ovPunchLine.destroy();
-
     const sys = state.overviewFilters.system || "ALL";
+    const focus = state.overviewFilters.punchLineFocus || "A_B_C";
     const gran = state.overviewFilters.punchLineGran || "week";
     const mode = state.overviewFilters.punchLineMode || "pct";
     const tl = computePunchTimeline(sys, gran);
-    const pts = tl.points;
-
-    const defs = [
-      { key: "punchA", label: "Punch Cat A", color: "#E11D48" },
-      { key: "punchB", label: "Punch Cat B", color: "#D97706" },
-      { key: "punchC", label: "Punch Cat C", color: "#0284C7" },
-    ];
-
-    state.charts.ovPunchLine = new Chart(canvas, {
-      type: "line",
-      data: {
-        labels: pts.map((p) => p.label),
-        datasets: defs.map((s) => ({
-          label: s.label,
-          data: pts.map((p) => (mode === "pct" ? p.pct[s.key] : p.cum[s.key])),
-          borderColor: s.color,
-          backgroundColor: s.color + "14",
-          borderWidth: 2.6,
-          tension: 0.25,
-          spanGaps: true,
-          pointRadius: pts.length > 35 ? 2 : 3.5,
-          pointHoverRadius: 5,
-          fill: false,
-        })),
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { position: "top", labels: { boxWidth: 14, usePointStyle: true, font: { size: 11, weight: "bold" } } },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const s = defs[ctx.datasetIndex];
-                const pt = pts[ctx.dataIndex];
-                if (!pt || !s) return "";
-                const tot = tl.totals[s.key];
-                if (!tot) return `${s.label}: No items`;
-                const cum = pt.cum[s.key];
-                const delta = pt.delta[s.key];
-                return `${s.label}: ${pt.pct[s.key]}% (${cum.toLocaleString()}/${tot.toLocaleString()})${delta > 0 ? ` (+${delta.toLocaleString()})` : ""}`;
-              },
-            },
-          },
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 10 } } },
-          y: {
-            beginAtZero: true,
-            max: mode === "pct" ? 100 : undefined,
-            ticks: { font: { size: 10 }, callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()) },
-          },
-        },
-      },
-    });
+    const seriesDefs = PUNCH_MIXED_SERIES[focus] || PUNCH_MIXED_SERIES.A_B_C;
+    renderMixedPlanActualChart({ canvas, chartKey: "ovPunchLine", tl, seriesDefs, mode });
   }
 
   function renderAllOverviewCharts(stats) {
@@ -2143,14 +2384,34 @@
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">ITR Trend</span>
+                <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">ITR Plan vs Actual</span>
                 <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
-                  ITR-A &amp; ITR-B Completion Line
+                  ITR-A &amp; ITR-B Plan (Bar) vs Actual (Line)
                 </h3>
               </div>
-              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative completion based on PMS Complete Date</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative Plan (PlanFinish) vs Actual Progress (CompleteDate)</p>
             </div>
             <div class="flex flex-wrap items-center gap-1.5">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+                ${[
+                  { k: "A_B", lbl: "A & B" },
+                  { k: "ITR-A", lbl: "ITR-A" },
+                  { k: "ITR-B", lbl: "ITR-B" },
+                  { k: "TOTAL", lbl: "Total" },
+                ]
+                  .map(
+                    (f) => `
+                  <button
+                    data-ov-itr-focus="${f.k}"
+                    onclick="setOvItrLineFocus('${f.k}')"
+                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      state.overviewFilters.itrLineFocus === f.k ? "bg-indigo-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }"
+                  >${f.lbl}</button>
+                `
+                  )
+                  .join("")}
+              </div>
               <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
                 ${[
                   { k: "week", lbl: "Weekly" },
@@ -2239,14 +2500,35 @@
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black uppercase">Punch Trend</span>
+                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black uppercase">Punch Plan vs Actual</span>
                 <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
-                  Punch Cat A / B / C Closure Line
+                  Punch Cat A / B / C Plan (Bar) vs Actual (Line)
                 </h3>
               </div>
-              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative closure based on PMS Closed Date</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative Plan (Expected Clearance Date) vs Actual Closure (ClosedDate)</p>
             </div>
             <div class="flex flex-wrap items-center gap-1.5">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+                ${[
+                  { k: "A_B_C", lbl: "A/B/C" },
+                  { k: "PUNCH-A", lbl: "Cat A" },
+                  { k: "PUNCH-B", lbl: "Cat B" },
+                  { k: "PUNCH-C", lbl: "Cat C" },
+                  { k: "ALL", lbl: "All Punch" },
+                ]
+                  .map(
+                    (f) => `
+                  <button
+                    data-ov-punch-focus="${f.k}"
+                    onclick="setOvPunchLineFocus('${f.k}')"
+                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      state.overviewFilters.punchLineFocus === f.k ? "bg-amber-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }"
+                  >${f.lbl}</button>
+                `
+                  )
+                  .join("")}
+              </div>
               <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
                 ${[
                   { k: "week", lbl: "Weekly" },

@@ -25,7 +25,7 @@ $tMorning = New-ScheduledTaskTrigger -Daily -At "06:00"
 # 4) 12:30 hằng ngày (buổi trưa cập nhật dữ liệu chiều)
 $tNoon = New-ScheduledTaskTrigger -Daily -At "12:30"
 
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun `
+$settings = New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable -WakeToRun `
             -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
             -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 

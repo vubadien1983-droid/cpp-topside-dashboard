@@ -31,39 +31,88 @@ if sys.stdout is not None:
     log.addHandler(sh)
 
 try:
-    sys.stdout.reconfigure(encoding="utf-8")
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
     pass
 
-PYTHON = sys.executable
+
+def _resolve_background_python() -> str:
+    exe = Path(sys.executable)
+    if os.name == "nt" and exe.name.lower() == "python.exe":
+        pw = exe.with_name("pythonw.exe")
+        if pw.exists():
+            return str(pw)
+    return str(exe)
+
+
+PYTHON = _resolve_background_python()
+
+# Chạy ngầm hoàn toàn trên Windows: không tạo / không nháy cửa sổ Terminal cho subprocess & git
+NO_WINDOW_KWARGS = {}
+if os.name == "nt":
+    _si = subprocess.STARTUPINFO()
+    _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    _si.wShowWindow = subprocess.SW_HIDE
+    NO_WINDOW_KWARGS = {
+        "creationflags": subprocess.CREATE_NO_WINDOW,
+        "startupinfo": _si,
+    }
+
 
 def run(script_name: str) -> int:
     script = APP_DIR / script_name
     log.info("=== ĐANG CHẠY: %s ===", script_name)
-    res = subprocess.run([PYTHON, str(script), "--once-per-day"], cwd=APP_DIR)
+    args = [PYTHON, str(script)]
+    if script_name != "build_dashboard_data.py":
+        args.append("--once-per-day")
+    res = subprocess.run(
+        args,
+        cwd=APP_DIR,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        **NO_WINDOW_KWARGS,
+    )
+    if res.stdout and res.stdout.strip():
+        for line in res.stdout.strip().splitlines()[-10:]:
+            log.info("[%s] %s", script_name, line)
+    if res.stderr and res.stderr.strip():
+        for line in res.stderr.strip().splitlines()[-10:]:
+            log.warning("[%s stderr] %s", script_name, line)
     log.info("=== KẾT THÚC %s (mã: %d) ===", script_name, res.returncode)
     return res.returncode
 
+
+def _run_git(git_args: list[str], check: bool = False):
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"}
+    return subprocess.run(
+        ["git", *git_args],
+        cwd=APP_DIR,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=check,
+        **NO_WINDOW_KWARGS,
+    )
+
+
 def sync_git():
     try:
-        git_check = subprocess.run(["git", "remote"], cwd=APP_DIR, capture_output=True, text=True)
+        git_check = _run_git(["remote"])
         if git_check.returncode == 0 and git_check.stdout.strip():
             log.info("=== TỰ ĐỘNG ĐẨY DỮ LIỆU MỚI LÊN GITHUB ===")
-            subprocess.run(
-                ["git", "add", "static/pms_data_bundle.js", "static/pms_data.json", "static/meta.json"],
-                cwd=APP_DIR,
-                check=True
-            )
-            diff_res = subprocess.run(["git", "diff", "--staged", "--quiet"], cwd=APP_DIR)
+            _run_git(["add", "static/pms_data_bundle.js", "static/pms_data.json", "static/meta.json"], check=True)
+            diff_res = _run_git(["diff", "--staged", "--quiet"])
             if diff_res.returncode != 0:
-                commit_res = subprocess.run(
-                    ["git", "commit", "-m", "chore: auto-update daily PMS data from machine"],
-                    cwd=APP_DIR,
-                    capture_output=True,
-                    text=True
-                )
+                commit_res = _run_git(["commit", "-m", "chore: auto-update daily PMS data from machine"])
                 log.info("Git commit: %s", commit_res.stdout.strip())
-                push_res = subprocess.run(["git", "push"], cwd=APP_DIR, capture_output=True, text=True)
+                push_res = _run_git(["push"])
                 if push_res.returncode == 0:
                     log.info("Đã push dữ liệu mới lên GitHub thành công! (GitHub Actions đang tự deploy)")
                 else:
