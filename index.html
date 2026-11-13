@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>CPP TOPSIDE — Punchlist & Checksheet Dashboard | Block B EPC#1</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f172a'/><path d='M7 22V14h4v8H7zm7 0V9h4v13h-4zm7 0V12h4v10h-4z' fill='%2310b981'/></svg>" />
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Font Awesome Icons -->
@@ -214,7 +215,7 @@
         </div>
       </div>
 
-      <!-- MULTI-TAB WORKSPACE BAR (2 MAIN TABS + DYNAMIC DRILLDOWN TABS) -->
+      <!-- MULTI-TAB WORKSPACE BAR (OVERVIEW + PUNCHLIST + CHECKSHEET + DYNAMIC DETAIL TABS) -->
       <div id="multi-tab-bar" class="flex items-center justify-between gap-2 pt-1.5 overflow-x-auto no-scrollbar"></div>
     </div>
   </header>
@@ -225,7 +226,7 @@
     <div id="app-content" class="space-y-4">
       <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
         <i class="fas fa-spinner fa-spin text-2xl text-blue-600 mb-2"></i>
-        <p class="text-sm font-bold text-slate-700">Loading Punchlist (8,981 items) & Checksheet (33,732 items)...</p>
+        <p class="text-sm font-bold text-slate-700">Loading CPP TOPSIDE Overview, Punchlist & Checksheet data...</p>
       </div>
     </div>
   </main>
