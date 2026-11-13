@@ -245,11 +245,29 @@ def build_data() -> dict:
 
     print(f" -> Đã trích xuất {len(pl_rows):,} punch items.")
 
+    data_timestamp = max(pl_mtime, cs_mtime)
+
+    # Check if existing data is already up-to-date with identical files
+    meta_path = STATIC_DIR / "meta.json"
+    if meta_path.exists():
+        try:
+            old_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if (
+                old_meta.get("punchlist_file") == pl_file.name
+                and old_meta.get("punchlist_updated") == pl_mtime
+                and old_meta.get("checksheet_file") == cs_file.name
+                and old_meta.get("checksheet_updated") == cs_mtime
+            ):
+                now_str = old_meta.get("last_updated") or now_str
+        except Exception:
+            pass
+
     payload = {
         "meta": {
             "project": "VIETNAM BLOCK B GAS PROJECT • EPC#1",
             "facility": "CPP TOPSIDE",
             "last_updated": now_str,
+            "data_timestamp": data_timestamp,
             "punchlist_file": pl_file.name,
             "punchlist_updated": pl_mtime,
             "punchlist_count": len(pl_rows),

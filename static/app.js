@@ -286,8 +286,14 @@
 
     if (state.data && state.data.meta) {
       const upEl = document.getElementById("header-updated-text");
+      const badgeEl = document.getElementById("header-updated-badge");
+      const m = state.data.meta;
+      const dataTime = m.data_timestamp || m.punchlist_updated || m.last_updated || "Today";
       if (upEl) {
-        upEl.textContent = `Updated: ${state.data.meta.last_updated || "Today"}`;
+        upEl.textContent = `Data: ${dataTime}`;
+      }
+      if (badgeEl) {
+        badgeEl.title = `Data exported from PMS at ${dataTime}\n• Punchlist: ${m.punchlist_file} (${m.punchlist_updated || "-"})\n• Checksheet: ${m.checksheet_file} (${m.checksheet_updated || "-"})\n• Synced: ${m.last_updated || "-"}`;
       }
     }
   }
@@ -489,16 +495,16 @@
         return `
           <div
             onclick="switchMainTab('${esc(t.id)}')"
-            class="group cursor-pointer px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm shrink-0 border ${
+            class="group cursor-pointer px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm shrink-0 border ${
               active
                 ? tabActiveCls
                 : "bg-slate-800/90 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
             }"
             title="${esc(t.title)}"
           >
-            <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${badgeCls}">${badgeLabel}</span>
-            <span class="max-w-[160px] truncate">${esc(t.title)}</span>
-            <span id="detail-tab-badge-${esc(t.id)}" class="px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${badgeCls}">${badgeLabel}</span>
+            <span class="max-w-[180px] truncate">${esc(t.title)}</span>
+            <span id="detail-tab-badge-${esc(t.id)}" class="px-2 py-0.5 rounded-full text-xs font-black ${
               active ? "bg-white/20 text-white" : "bg-slate-700 text-slate-300"
             }">${rowsCount.toLocaleString()}</span>
             <button
@@ -519,15 +525,15 @@
       <div class="flex items-center gap-2">
         <button
           onclick="switchMainTab('overview')"
-          class="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all shadow-sm shrink-0 ${
+          class="px-4 py-2 rounded-xl text-sm sm:text-base font-black flex items-center gap-2.5 transition-all shadow-sm shrink-0 ${
             isOv
               ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md ring-2 ring-white/20"
               : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
           }"
         >
-          <i class="fas fa-chart-pie text-sm"></i>
+          <i class="fas fa-chart-pie text-base"></i>
           <span>Overview</span>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-black ${
             isOv ? "bg-white/20 text-white" : "bg-slate-700 text-emerald-300"
           }" title="Overall Gate Completion %">
             ${ovPct}%
@@ -536,15 +542,15 @@
 
         <button
           onclick="switchMainTab('punchlist')"
-          class="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all shadow-sm shrink-0 ${
+          class="px-4 py-2 rounded-xl text-sm sm:text-base font-black flex items-center gap-2.5 transition-all shadow-sm shrink-0 ${
             isPl
               ? "bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md ring-2 ring-white/20"
               : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
           }"
         >
-          <i class="fas fa-clipboard-list text-sm"></i>
+          <i class="fas fa-clipboard-list text-base"></i>
           <span>Punchlist</span>
-          <span id="tab-pl-badge" class="px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
+          <span id="tab-pl-badge" class="px-2.5 py-0.5 rounded-full text-xs font-black transition-all ${
             isPlFiltered
               ? "bg-amber-400 text-slate-900 shadow-sm ring-1 ring-amber-300"
               : isPl
@@ -557,15 +563,15 @@
 
         <button
           onclick="switchMainTab('checksheet')"
-          class="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all shadow-sm shrink-0 ${
+          class="px-4 py-2 rounded-xl text-sm sm:text-base font-black flex items-center gap-2.5 transition-all shadow-sm shrink-0 ${
             isCs
               ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md ring-2 ring-white/20"
               : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
           }"
         >
-          <i class="fas fa-tasks text-sm"></i>
+          <i class="fas fa-tasks text-base"></i>
           <span>Checksheet</span>
-          <span id="tab-cs-badge" class="px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
+          <span id="tab-cs-badge" class="px-2.5 py-0.5 rounded-full text-xs font-black transition-all ${
             isCsFiltered
               ? "bg-amber-400 text-slate-900 shadow-sm ring-1 ring-amber-300"
               : isCs
@@ -855,34 +861,34 @@
     const openJson = esc(JSON.stringify(openCriteria));
 
     return `
-      <td class="py-2 px-2.5 text-xs">
+      <td class="py-2.5 px-3 text-xs sm:text-sm">
         <div
           onclick="openDetailTab(${allJson})"
-          class="cursor-pointer rounded-lg p-1.5 hover:bg-blue-50/70 transition-colors border border-transparent hover:border-blue-200"
+          class="cursor-pointer rounded-xl p-2 hover:bg-blue-50/70 transition-colors border border-transparent hover:border-blue-200"
           title="Click to view all ${bucket.total.toLocaleString()} items"
         >
-          <div class="flex items-center justify-between gap-1.5 whitespace-nowrap">
-            <span class="font-mono text-[11px]">
-              <strong class="text-slate-900">${bucket.closed.toLocaleString()}</strong><span class="text-slate-400">/${bucket.total.toLocaleString()}</span>
+          <div class="flex items-center justify-between gap-2 whitespace-nowrap">
+            <span class="font-mono text-xs sm:text-sm">
+              <strong class="text-slate-900 font-black">${bucket.closed.toLocaleString()}</strong><span class="text-slate-400 font-semibold">/${bucket.total.toLocaleString()}</span>
             </span>
-            <span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${pctBadgeClass}">
+            <span class="px-2 py-0.5 rounded-md text-xs font-black border ${pctBadgeClass}">
               ${bucket.pct}%
             </span>
           </div>
-          <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+          <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1.5">
             <div class="h-full rounded-full ${barColor}" style="width: ${bucket.pct}%"></div>
           </div>
-          <div class="mt-1 flex items-center justify-between">
+          <div class="mt-1.5 flex items-center justify-between">
             ${
               bucket.open > 0
                 ? `<button
                     onclick="event.stopPropagation(); openDetailTab(${openJson})"
-                    class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${openColorClass} transition-colors"
+                    class="px-2 py-0.5 rounded-md text-xs font-bold border ${openColorClass} transition-colors"
                     title="Click to inspect ${bucket.open.toLocaleString()} open/remaining items"
                   >
                     Open: ${bucket.open.toLocaleString()}
                   </button>`
-                : `<span class="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5"><i class="fas fa-check-circle text-[9px]"></i> Complete</span>`
+                : `<span class="text-xs font-bold text-emerald-600 flex items-center gap-1"><i class="fas fa-check-circle text-xs"></i> Complete</span>`
             }
           </div>
         </div>
@@ -922,22 +928,22 @@
         const plAllCrit = esc(JSON.stringify({ source: "punchlist", system: sys, subSystem: sub, category: "ALL", status: "ALL", title: `${sub} • All Punch` }));
 
         return `
-          <tr class="hover:bg-blue-50/30 border-b border-slate-100 text-xs transition-colors">
-            <td class="py-2.5 px-2 text-center text-slate-400 font-mono whitespace-nowrap">${idx + 1}</td>
-            <td class="py-2.5 px-2.5 min-w-[180px] max-w-[260px]">
+          <tr class="hover:bg-blue-50/30 border-b border-slate-100 text-xs sm:text-sm transition-colors">
+            <td class="py-2.5 px-2.5 text-center text-slate-400 font-mono font-semibold whitespace-nowrap">${idx + 1}</td>
+            <td class="py-2.5 px-3 min-w-[200px] max-w-[280px]">
               <button
                 type="button"
                 onclick="openDetailTab(${subFullCrit})"
-                class="font-mono font-extrabold text-blue-700 hover:text-blue-900 hover:underline text-xs inline-flex items-center gap-1.5 text-left cursor-pointer group/sub"
+                class="font-mono font-black text-blue-700 hover:text-blue-900 hover:underline text-xs sm:text-sm inline-flex items-center gap-1.5 text-left cursor-pointer group/sub"
                 title="Open full detail for SubSystem ${esc(sub)} (ITR-A/B & Punchlist A/B/C) in new tab"
               >
                 <span>${esc(sub)}</span>
-                <i class="fas fa-arrow-up-right-from-square text-[9px] text-blue-400 group-hover/sub:text-blue-700"></i>
+                <i class="fas fa-arrow-up-right-from-square text-[10px] text-blue-400 group-hover/sub:text-blue-700"></i>
               </button>
-              ${s.description ? `<div class="text-[11px] text-slate-500 truncate max-w-[240px]" title="${esc(s.description)}">${esc(s.description)}</div>` : ""}
-              <div class="flex items-center gap-1.5 mt-1">
-                <button onclick="openDetailTab(${itrAllCrit})" class="px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-[10px] font-bold transition-colors">All ITRs</button>
-                <button onclick="openDetailTab(${plAllCrit})" class="px-1.5 py-0.5 rounded bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-[10px] font-bold transition-colors">All Punch</button>
+              ${s.description ? `<div class="text-xs text-slate-600 font-medium truncate max-w-[260px] mt-0.5" title="${esc(s.description)}">${esc(s.description)}</div>` : ""}
+              <div class="flex items-center gap-2 mt-1.5">
+                <button onclick="openDetailTab(${itrAllCrit})" class="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold transition-colors">All ITRs</button>
+                <button onclick="openDetailTab(${plAllCrit})" class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-bold transition-colors">All Punch</button>
               </div>
             </td>
             ${renderGateCellHtml(
@@ -970,15 +976,15 @@
               { source: "checksheet", system: sys, subSystem: sub, itrGroup: "ITR-B", status: "Remaining", title: `${sub} • ITR-B (Remaining)` },
               "indigo"
             )}
-            <td class="py-2.5 px-3 min-w-[125px]">
-              <div class="flex items-center justify-between text-xs font-extrabold text-slate-800">
+            <td class="py-2.5 px-3 min-w-[135px]">
+              <div class="flex items-center justify-between text-xs sm:text-sm font-black text-slate-800">
                 <span>${s.overallPct}%</span>
-                <span class="text-[10px] font-mono text-slate-500">${s.overallClosed}/${s.overallTotal}</span>
+                <span class="text-xs font-mono text-slate-500 font-semibold">${s.overallClosed}/${s.overallTotal}</span>
               </div>
-              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1.5">
                 <div class="h-full rounded-full ${s.overallPct >= 100 ? "bg-emerald-500" : "bg-teal-500"}" style="width: ${s.overallPct}%"></div>
               </div>
-              <div class="text-[10px] text-slate-500 mt-1 font-mono">ITR: ${s.itrPct}% | PL: ${s.punchPct}%</div>
+              <div class="text-xs text-slate-500 mt-1 font-mono font-medium">ITR: ${s.itrPct}% | PL: ${s.punchPct}%</div>
             </td>
           </tr>
         `;
@@ -1385,8 +1391,10 @@
           });
         },
         plugins: {
-          legend: { position: "top", labels: { boxWidth: 12, font: { size: 11, weight: "bold" } } },
+          legend: { position: "top", labels: { boxWidth: 14, font: { size: 12, weight: "bold" } } },
           tooltip: {
+            titleFont: { size: 12, weight: "bold" },
+            bodyFont: { size: 12 },
             callbacks: {
               afterBody: (items) => {
                 if (!items.length) return "";
@@ -1397,8 +1405,8 @@
           },
         },
         scales: {
-          x: { stacked: true, ticks: { font: { size: 10 } } },
-          y: { stacked: true, beginAtZero: true },
+          x: { stacked: true, ticks: { font: { size: 11, weight: "bold" } } },
+          y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11, weight: "bold" } } },
         },
       },
     });
@@ -1464,9 +1472,11 @@
         plugins: {
           legend: {
             position: "top",
-            labels: { boxWidth: 12, usePointStyle: true, font: { size: 11, weight: "bold" } },
+            labels: { boxWidth: 14, usePointStyle: true, font: { size: 12, weight: "bold" } },
           },
           tooltip: {
+            titleFont: { size: 12, weight: "bold" },
+            bodyFont: { size: 12 },
             callbacks: {
               label: (ctx) => {
                 const meta = datasetMeta[ctx.datasetIndex];
@@ -1509,13 +1519,13 @@
         scales: {
           x: {
             grid: { display: false },
-            ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 10 } },
+            ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 11, weight: "bold" } },
           },
           y: {
             beginAtZero: true,
             max: mode === "pct" ? 100 : undefined,
             ticks: {
-              font: { size: 10 },
+              font: { size: 11, weight: "bold" },
               callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()),
             },
           },
@@ -1655,8 +1665,10 @@
           });
         },
         plugins: {
-          legend: { position: "top", labels: { boxWidth: 12, font: { size: 11, weight: "bold" } } },
+          legend: { position: "top", labels: { boxWidth: 14, font: { size: 12, weight: "bold" } } },
           tooltip: {
+            titleFont: { size: 12, weight: "bold" },
+            bodyFont: { size: 12 },
             callbacks: {
               afterBody: (items) => {
                 if (!items.length) return "";
@@ -1667,8 +1679,8 @@
           },
         },
         scales: {
-          x: { stacked: true, ticks: { font: { size: 10 } } },
-          y: { stacked: true, beginAtZero: true },
+          x: { stacked: true, ticks: { font: { size: 11, weight: "bold" } } },
+          y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11, weight: "bold" } } },
         },
       },
     });
@@ -1847,16 +1859,16 @@
 
   function renderCompactGateCell(b) {
     if (!b || b.total === 0) {
-      return `<td class="py-1.5 px-2 text-center text-slate-300 font-mono text-[11px]">-</td>`;
+      return `<td class="py-2 px-2.5 text-center text-slate-300 font-mono text-xs">-</td>`;
     }
     return `
-      <td class="py-1.5 px-2 text-center whitespace-nowrap">
-        <div class="inline-flex items-center gap-1 font-mono text-[11px]">
-          <span class="font-extrabold text-emerald-700" title="Closed / Completed">${b.closed.toLocaleString()}</span>
-          <span class="text-slate-300">/</span>
+      <td class="py-2 px-2.5 text-center whitespace-nowrap">
+        <div class="inline-flex items-center gap-1.5 font-mono text-xs sm:text-sm">
+          <span class="font-black text-emerald-700" title="Closed / Completed">${b.closed.toLocaleString()}</span>
+          <span class="text-slate-300 font-semibold">/</span>
           <span class="font-bold ${b.open > 0 ? "text-rose-600" : "text-slate-400"}" title="Open / Remaining">${b.open.toLocaleString()}</span>
         </div>
-        <div class="text-[10px] font-bold text-slate-500">${b.pct}%</div>
+        <div class="text-xs font-bold text-slate-500 mt-0.5">${b.pct}%</div>
       </td>
     `;
   }
@@ -1883,31 +1895,31 @@
 
     return `
       <details open class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <summary class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none list-none">
-          <div class="flex items-center gap-2 flex-wrap">
-            <i class="fas fa-layer-group text-indigo-600 text-xs"></i>
-            <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+        <summary class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none list-none">
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <i class="fas fa-layer-group text-indigo-600 text-sm"></i>
+            <span class="text-sm font-black text-slate-800 uppercase tracking-wide">
               Discipline Closure Summary (ITR-A/B &amp; Punch Cat A/B/C)
             </span>
-            <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">${list.length} Disciplines</span>
-            ${opts.scopeLabel ? `<span class="text-[11px] text-slate-500 font-medium">(${esc(opts.scopeLabel)})</span>` : ""}
+            <span class="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold">${list.length} Disciplines</span>
+            ${opts.scopeLabel ? `<span class="text-xs text-slate-500 font-medium">(${esc(opts.scopeLabel)})</span>` : ""}
           </div>
-          <div class="flex items-center gap-2 text-[10px] text-slate-500">
-            <span><strong class="text-emerald-700">Closed</strong> / <strong class="text-rose-600">Open</strong></span>
-            <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">Toggle</span>
+          <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <span><strong class="text-emerald-700 font-bold">Closed</strong> / <strong class="text-rose-600 font-bold">Open</strong></span>
+            <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-xs">Toggle</span>
           </div>
         </summary>
         <div class="overflow-x-auto">
           <table class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
             <thead>
-              <tr class="bg-slate-800 text-white text-[10px] uppercase font-bold tracking-wider">
-                <th class="py-2 px-3 whitespace-nowrap">Discipline</th>
-                <th class="py-2 px-2 text-center whitespace-nowrap">ITR-A (Comp / Rem)</th>
-                <th class="py-2 px-2 text-center whitespace-nowrap">Punch A (Cls / Opn)</th>
-                <th class="py-2 px-2 text-center whitespace-nowrap">Punch B (Cls / Opn)</th>
-                <th class="py-2 px-2 text-center whitespace-nowrap">Punch C (Cls / Opn)</th>
-                <th class="py-2 px-2 text-center whitespace-nowrap">ITR-B (Comp / Rem)</th>
-                <th class="py-2 px-2 text-center whitespace-nowrap">Overall</th>
+              <tr class="bg-slate-800 text-white text-xs uppercase font-black tracking-wider">
+                <th class="py-2.5 px-3.5 whitespace-nowrap">Discipline</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-A (Comp / Rem)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch A (Cls / Opn)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch B (Cls / Opn)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch C (Cls / Opn)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-B (Comp / Rem)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Overall</th>
               </tr>
             </thead>
             <tbody>
@@ -1915,9 +1927,9 @@
                 .map((d) => {
                   const theme = DISC_THEMES[d.discipline] || DISC_THEMES.Unassigned;
                   return `
-                    <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs">
-                      <td class="py-1.5 px-3 font-bold text-slate-800 whitespace-nowrap">
-                        <span class="inline-block w-2 h-2 rounded-full mr-1.5" style="background:${theme.bar}"></span>
+                    <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs sm:text-sm">
+                      <td class="py-2 px-3.5 font-black text-slate-800 whitespace-nowrap">
+                        <span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background:${theme.bar}"></span>
                         ${esc(d.discipline)}
                       </td>
                       ${renderCompactGateCell(d.itrA)}
@@ -1925,8 +1937,8 @@
                       ${renderCompactGateCell(d.punchB)}
                       ${renderCompactGateCell(d.punchC)}
                       ${renderCompactGateCell(d.itrB)}
-                      <td class="py-1.5 px-2 text-center whitespace-nowrap font-mono text-[11px] font-black text-slate-800">
-                        ${d.overallPct}% <span class="text-[10px] font-normal text-slate-400">(${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()})</span>
+                      <td class="py-2 px-3 text-center whitespace-nowrap font-mono text-xs sm:text-sm font-black text-slate-800">
+                        ${d.overallPct}% <span class="text-xs font-normal text-slate-400">(${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()})</span>
                       </td>
                     </tr>
                   `;
@@ -1934,10 +1946,25 @@
                 .join("")}
             </tbody>
             <tfoot>
-              <tr class="bg-slate-100 border-t border-slate-300 text-xs font-bold">
-                <td class="py-1.5 px-3 text-slate-900 font-black uppercase">TOTAL</td>
+              <tr class="bg-slate-100 border-t border-slate-300 text-xs sm:text-sm font-black">
+                <td class="py-2.5 px-3.5 text-slate-900 font-black uppercase">TOTAL</td>
                 ${renderCompactGateCell(tot.itrA)}
                 ${renderCompactGateCell(tot.punchA)}
+                ${renderCompactGateCell(tot.punchB)}
+                ${renderCompactGateCell(tot.punchC)}
+                ${renderCompactGateCell(tot.itrB)}
+                <td class="py-2.5 px-3 text-center whitespace-nowrap font-mono text-xs sm:text-sm font-black text-emerald-700">
+                  ${
+                    (() => {
+                      const gt = tot.itrA.total + tot.punchA.total + tot.punchB.total + tot.punchC.total + tot.itrB.total;
+                      const gc = tot.itrA.closed + tot.punchA.closed + tot.punchB.closed + tot.punchC.closed + tot.itrB.closed;
+                      const gp = gt > 0 ? ((gc / gt) * 100).toFixed(1) : "0.0";
+                      return `${gp}% <span class="text-xs font-normal text-slate-500">(${gc.toLocaleString()}/${gt.toLocaleString()})</span>`;
+                    })()
+                  }
+                </td>
+              </tr>
+            </tfoot>
                 ${renderCompactGateCell(tot.punchB)}
                 ${renderCompactGateCell(tot.punchC)}
                 ${renderCompactGateCell(tot.itrB)}
@@ -2109,25 +2136,25 @@
 
     container.innerHTML = `
       <!-- 0. Scope Control & Overview Banner -->
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">Executive Summary</span>
-            <h2 class="text-sm sm:text-base font-black text-slate-900">
-              CPP TOPSIDE — Pre-Commissioning & Punchlist Closure Overview
+            <span class="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wider">Executive Summary</span>
+            <h2 class="text-base sm:text-lg lg:text-xl font-black text-slate-900">
+              CPP TOPSIDE — Pre-Commissioning &amp; Punchlist Closure Overview
             </h2>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">
+          <p class="text-xs sm:text-sm text-slate-600 font-medium mt-1">
             Closed / Completed vs Total across <strong>ITR-A, Punch A, B, C, ITR-B</strong>. Click any card, chart bar, or table cell to open a Detail Tab.
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <div class="flex items-center gap-1.5">
-            <label class="text-[11px] font-bold text-slate-600"><i class="fas fa-filter text-blue-600 mr-1"></i>System:</label>
+          <div class="flex items-center gap-2">
+            <label class="text-xs sm:text-sm font-bold text-slate-700"><i class="fas fa-filter text-blue-600 mr-1.5"></i>System:</label>
             <select
               onchange="setOvSystem(this.value)"
-              class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
+              class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm"
             >
               <option value="ALL">-- All Systems (${stats.allSystems.length}) --</option>
               ${stats.allSystems
@@ -2139,7 +2166,7 @@
       </div>
 
       <!-- 1. Top 5 Gate KPI Cards (ITR-A, Punch A, Punch B, Punch C, ITR-B) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         ${kpiCards
           .map((c) => {
             const b = c.bucket;
@@ -2148,51 +2175,51 @@
             return `
               <div
                 onclick="openDetailTab(${allJson})"
-                class="group cursor-pointer bg-white rounded-2xl p-4 border ${c.border} shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                class="group cursor-pointer bg-white rounded-2xl p-4 sm:p-5 border ${c.border} shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
               >
                 <div>
                   <div class="flex items-start justify-between gap-2">
                     <div>
-                      <p class="text-[11px] font-extrabold uppercase tracking-wider ${c.titleColor}">${esc(c.title)}</p>
-                      <p class="text-[10px] text-slate-400 font-medium">${esc(c.sub)}</p>
+                      <p class="text-xs sm:text-sm font-black uppercase tracking-wider ${c.titleColor}">${esc(c.title)}</p>
+                      <p class="text-xs text-slate-500 font-semibold mt-0.5">${esc(c.sub)}</p>
                     </div>
-                    <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-1.5">
                       <button
                         onclick="event.stopPropagation(); openDetailTab(${allJson}, true)"
-                        class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-[10px]"
+                        class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs transition-colors"
                         title="Open in new browser window"
                       >
                         <i class="fas fa-external-link-alt"></i>
                       </button>
-                      <div class="w-8 h-8 rounded-xl ${c.iconBg} flex items-center justify-center transition-colors">
-                        <i class="fas ${c.icon} text-xs"></i>
+                      <div class="w-9 h-9 rounded-xl ${c.iconBg} flex items-center justify-center transition-colors">
+                        <i class="fas ${c.icon} text-sm"></i>
                       </div>
                     </div>
                   </div>
 
-                  <div class="mt-2.5 flex items-baseline justify-between gap-2">
+                  <div class="mt-3 flex items-baseline justify-between gap-2">
                     <div class="font-mono">
-                      <span class="text-xl sm:text-2xl font-black ${c.valColor}">${b.closed.toLocaleString()}</span>
-                      <span class="text-xs font-bold text-slate-400">/ ${b.total.toLocaleString()}</span>
+                      <span class="text-2xl sm:text-3xl lg:text-4xl font-black ${c.valColor}">${b.closed.toLocaleString()}</span>
+                      <span class="text-sm font-bold text-slate-400">/ ${b.total.toLocaleString()}</span>
                     </div>
-                    <span class="text-xs font-black px-2 py-0.5 rounded-full ${c.pillBg}">${b.pct}%</span>
+                    <span class="text-xs sm:text-sm font-black px-2.5 py-1 rounded-lg ${c.pillBg}">${b.pct}%</span>
                   </div>
 
-                  <div class="mt-2 w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div class="mt-2.5 w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                     <div class="${c.barColor} h-full rounded-full transition-all duration-300" style="width: ${b.pct}%"></div>
                   </div>
                 </div>
 
-                <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <div class="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs sm:text-sm">
                   <button
                     onclick="event.stopPropagation(); openDetailTab(${openJson})"
-                    class="font-bold text-rose-600 hover:underline"
+                    class="font-black text-rose-600 hover:underline"
                     title="Click to inspect ${c.openLabel.toLowerCase()} items"
                   >
                     ${c.openLabel}: ${b.open.toLocaleString()}
                   </button>
-                  <span class="${c.titleColor} font-bold group-hover:translate-x-0.5 transition-transform">
-                    Details <i class="fas fa-arrow-right text-[10px]"></i>
+                  <span class="${c.titleColor} font-black group-hover:translate-x-0.5 transition-transform">
+                    Details <i class="fas fa-arrow-right text-xs"></i>
                   </span>
                 </div>
               </div>
@@ -2203,17 +2230,17 @@
 
       <!-- 1B. Summary Matrix by Discipline (Right on Top below KPIs) -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
-            <i class="fas fa-layer-group text-indigo-600"></i>
-            <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <i class="fas fa-layer-group text-indigo-600 text-base"></i>
+            <h3 class="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wide">
               1. Summary Matrix by Discipline (ITR-A, Punch A/B/C, ITR-B)
             </h3>
-            <span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold">
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">
               ${stats.byDiscipline.length} Disciplines
             </span>
           </div>
-          <span class="text-[11px] text-slate-500">
+          <span class="text-xs text-slate-500 font-medium">
             <i class="fas fa-mouse-pointer mr-1 text-blue-500"></i> Click any cell to open Detail Tab
           </span>
         </div>
@@ -2221,14 +2248,14 @@
         <div class="overflow-x-auto">
           <table class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
             <thead>
-              <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-3 whitespace-nowrap">Discipline</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-A (Comp / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch Cat A (Closed / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch Cat B (Closed / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch Cat C (Closed / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-B (Comp / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Overall %</th>
+              <tr class="bg-slate-900 text-white text-xs sm:text-sm uppercase font-black tracking-wider">
+                <th class="py-2.5 px-3.5 whitespace-nowrap">Discipline</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>ITR-A</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Comp / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Punch Cat A</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Closed / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Punch Cat B</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Closed / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Punch Cat C</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Closed / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>ITR-B</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Comp / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Overall %</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Progress</span></th>
               </tr>
             </thead>
             <tbody>
@@ -2238,15 +2265,15 @@
                   const discItrCrit = esc(JSON.stringify({ source: "checksheet", system: sys, discipline: d.discipline, itrGroup: "ALL", status: "ALL", title: `${d.discipline} • All ITRs` }));
                   const discPlCrit = esc(JSON.stringify({ source: "punchlist", system: sys, discipline: d.discipline, category: "ALL", status: "ALL", title: `${d.discipline} • All Punch` }));
                   return `
-                    <tr class="hover:bg-blue-50/30 border-b border-slate-100 text-xs transition-colors">
-                      <td class="py-2 px-3 min-w-[160px]">
+                    <tr class="hover:bg-blue-50/30 border-b border-slate-100 text-xs sm:text-sm transition-colors">
+                      <td class="py-2.5 px-3.5 min-w-[170px]">
                         <div class="flex items-center gap-2">
-                          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${theme.bar}"></span>
-                          <span class="font-extrabold text-slate-900 text-xs sm:text-sm">${esc(d.discipline)}</span>
+                          <span class="w-3 h-3 rounded-full shrink-0" style="background:${theme.bar}"></span>
+                          <span class="font-black text-slate-900 text-sm sm:text-base">${esc(d.discipline)}</span>
                         </div>
-                        <div class="flex items-center gap-1.5 mt-1 pl-4">
-                          <button onclick="openDetailTab(${discItrCrit})" class="px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-[10px] font-bold transition-colors">All ITRs</button>
-                          <button onclick="openDetailTab(${discPlCrit})" class="px-1.5 py-0.5 rounded bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-[10px] font-bold transition-colors">All Punch</button>
+                        <div class="flex items-center gap-2 mt-1.5 pl-5">
+                          <button onclick="openDetailTab(${discItrCrit})" class="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-xs font-bold transition-colors">All ITRs</button>
+                          <button onclick="openDetailTab(${discPlCrit})" class="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-bold transition-colors">All Punch</button>
                         </div>
                       </td>
                       ${renderGateCellHtml(
@@ -2279,15 +2306,15 @@
                         { source: "checksheet", system: sys, discipline: d.discipline, itrGroup: "ITR-B", status: "Remaining", title: `${d.discipline} • ITR-B (Remaining)` },
                         "indigo"
                       )}
-                      <td class="py-2 px-3 min-w-[130px]">
-                        <div class="flex items-center justify-between text-xs font-extrabold text-slate-800">
+                      <td class="py-2.5 px-3.5 min-w-[140px]">
+                        <div class="flex items-center justify-between text-xs sm:text-sm font-black text-slate-800">
                           <span>${d.overallPct}%</span>
-                          <span class="text-[10px] font-mono text-slate-500">${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()}</span>
+                          <span class="text-xs font-mono text-slate-500 font-semibold">${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()}</span>
                         </div>
-                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1.5">
                           <div class="h-full rounded-full" style="width:${d.overallPct}%; background:${theme.bar}"></div>
                         </div>
-                        <div class="text-[10px] text-slate-500 mt-1 font-mono">ITR: ${d.itrPct}% | PL: ${d.punchPct}%</div>
+                        <div class="text-xs text-slate-500 mt-1 font-mono font-medium">ITR: ${d.itrPct}% | PL: ${d.punchPct}%</div>
                       </td>
                     </tr>
                   `;
@@ -2295,8 +2322,8 @@
                 .join("")}
             </tbody>
             <tfoot>
-              <tr class="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs">
-                <td class="py-2.5 px-3 font-black text-slate-900 uppercase">TOTAL (${sys === "ALL" ? "CPP TOPSIDE" : esc(sys)})</td>
+              <tr class="bg-slate-100 border-t-2 border-slate-300 font-black text-xs sm:text-sm">
+                <td class="py-3 px-3.5 font-black text-slate-900 uppercase">TOTAL (${sys === "ALL" ? "CPP TOPSIDE" : esc(sys)})</td>
                 ${renderGateCellHtml(
                   discTotalRow.itrA,
                   { source: "checksheet", system: sys, itrGroup: "ITR-A", status: "ALL", title: "All ITR-A" },
@@ -2327,13 +2354,17 @@
                   { source: "checksheet", system: sys, itrGroup: "ITR-B", status: "Remaining", title: "ITR-B (Remaining)" },
                   "indigo"
                 )}
-                <td class="py-2.5 px-3">
-                  <div class="flex items-center justify-between text-xs font-black text-slate-900">
+                <td class="py-3 px-3.5 min-w-[140px]">
+                  <div class="flex items-center justify-between text-xs sm:text-sm font-black text-slate-900">
                     <span>${totPct}%</span>
-                    <span class="text-[10px] font-mono text-slate-600">${totClosed.toLocaleString()}/${totAll.toLocaleString()}</span>
+                    <span class="text-xs font-mono text-slate-600 font-bold">${totClosed.toLocaleString()}/${totAll.toLocaleString()}</span>
                   </div>
-                  <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-1">
+                  <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden mt-1.5">
                     <div class="h-full rounded-full bg-emerald-600" style="width:${totPct}%"></div>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
                   </div>
                 </td>
               </tr>
@@ -2344,18 +2375,18 @@
 
       <!-- 2A. Checksheets Charts Section (Dedicated ITR-A & ITR-B) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-blue-200/80 p-4 shadow-sm">
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-blue-200/80 p-4 sm:p-5 shadow-sm">
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-black uppercase">Checksheets</span>
-                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                <span class="px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 text-xs font-black uppercase">Checksheets</span>
+                <h3 class="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wide">
                   ITR-A &amp; ITR-B Status by Discipline
                 </h3>
               </div>
-              <p class="text-[11px] text-slate-500 mt-0.5">Click any bar to inspect ITR records in a Detail Tab</p>
+              <p class="text-xs text-slate-500 font-medium mt-1">Click any bar to inspect ITR records in a Detail Tab</p>
             </div>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1.5">
               ${[
                 { k: "ALL_ITR", lbl: "All ITRs" },
                 { k: "ITR-A", lbl: "ITR-A" },
@@ -2366,7 +2397,7 @@
                 <button
                   data-ov-itr-bar="${m.k}"
                   onclick="setOvItrBarMetric('${m.k}')"
-                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     state.overviewFilters.itrBarMetric === m.k ? "bg-blue-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }"
                 >${m.lbl}</button>
@@ -2375,24 +2406,24 @@
                 .join("")}
             </div>
           </div>
-          <div class="mt-3 relative w-full" style="height:280px;">
+          <div class="mt-3 relative w-full" style="height:340px;">
             <canvas id="chart-ov-itr-disc" class="w-full h-full"></canvas>
           </div>
         </div>
 
-        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-blue-200/80 p-4 shadow-sm">
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-blue-200/80 p-4 sm:p-5 shadow-sm">
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">ITR Plan vs Actual</span>
-                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                <span class="px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-800 text-xs font-black uppercase">ITR Plan vs Actual</span>
+                <h3 class="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wide">
                   ITR-A &amp; ITR-B Plan (Bar) vs Actual (Line)
                 </h3>
               </div>
-              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative Plan (PlanFinish) vs Actual Progress (CompleteDate)</p>
+              <p class="text-xs text-slate-500 font-medium mt-1">Cumulative Plan (PlanFinish) vs Actual Progress (CompleteDate)</p>
             </div>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-2">
                 ${[
                   { k: "A_B", lbl: "A & B" },
                   { k: "ITR-A", lbl: "ITR-A" },
@@ -2404,7 +2435,7 @@
                   <button
                     data-ov-itr-focus="${f.k}"
                     onclick="setOvItrLineFocus('${f.k}')"
-                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                       state.overviewFilters.itrLineFocus === f.k ? "bg-indigo-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }"
                   >${f.lbl}</button>
@@ -2412,7 +2443,7 @@
                   )
                   .join("")}
               </div>
-              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-2">
                 ${[
                   { k: "week", lbl: "Weekly" },
                   { k: "month", lbl: "Monthly" },
@@ -2423,7 +2454,7 @@
                   <button
                     data-ov-itr-gran="${g.k}"
                     onclick="setOvItrLineGran('${g.k}')"
-                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                       state.overviewFilters.itrLineGran === g.k ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }"
                   >${g.lbl}</button>
@@ -2441,7 +2472,7 @@
                   <button
                     data-ov-itr-mode="${m.k}"
                     onclick="setOvItrLineMode('${m.k}')"
-                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                       state.overviewFilters.itrLineMode === m.k ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }"
                   >${m.lbl}</button>
@@ -2451,7 +2482,7 @@
               </div>
             </div>
           </div>
-          <div class="mt-3 relative w-full" style="height:280px;">
+          <div class="mt-3 relative w-full" style="height:340px;">
             <canvas id="chart-ov-itr-line" class="w-full h-full"></canvas>
           </div>
         </div>
@@ -2459,18 +2490,18 @@
 
       <!-- 2B. Punch List Charts Section (Dedicated Cat A / B / C) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm">
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-rose-200/80 p-4 sm:p-5 shadow-sm">
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[10px] font-black uppercase">Punch List</span>
-                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                <span class="px-2.5 py-1 rounded-md bg-rose-100 text-rose-800 text-xs font-black uppercase">Punch List</span>
+                <h3 class="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wide">
                   Punch Closed vs Open by Discipline
                 </h3>
               </div>
-              <p class="text-[11px] text-slate-500 mt-0.5">Click any bar to inspect Punch items in a Detail Tab</p>
+              <p class="text-xs text-slate-500 font-medium mt-1">Click any bar to inspect Punch items in a Detail Tab</p>
             </div>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1.5">
               ${[
                 { k: "ALL_PUNCH", lbl: "All Cats" },
                 { k: "PUNCH-A", lbl: "Cat A" },
@@ -2482,7 +2513,7 @@
                 <button
                   data-ov-punch-bar="${m.k}"
                   onclick="setOvPunchBarMetric('${m.k}')"
-                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     state.overviewFilters.punchBarMetric === m.k ? "bg-rose-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }"
                 >${m.lbl}</button>
@@ -2491,24 +2522,24 @@
                 .join("")}
             </div>
           </div>
-          <div class="mt-3 relative w-full" style="height:280px;">
+          <div class="mt-3 relative w-full" style="height:340px;">
             <canvas id="chart-ov-punch-disc" class="w-full h-full"></canvas>
           </div>
         </div>
 
-        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm">
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-rose-200/80 p-4 sm:p-5 shadow-sm">
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black uppercase">Punch Plan vs Actual</span>
-                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                <span class="px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 text-xs font-black uppercase">Punch Plan vs Actual</span>
+                <h3 class="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wide">
                   Punch Cat A / B / C Plan (Bar) vs Actual (Line)
                 </h3>
               </div>
-              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative Plan (Expected Clearance Date) vs Actual Closure (ClosedDate)</p>
+              <p class="text-xs text-slate-500 font-medium mt-1">Cumulative Plan (Expected Clearance Date) vs Actual Closure (ClosedDate)</p>
             </div>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-2">
                 ${[
                   { k: "A_B_C", lbl: "A/B/C" },
                   { k: "PUNCH-A", lbl: "Cat A" },
@@ -2521,7 +2552,7 @@
                   <button
                     data-ov-punch-focus="${f.k}"
                     onclick="setOvPunchLineFocus('${f.k}')"
-                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                       state.overviewFilters.punchLineFocus === f.k ? "bg-amber-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }"
                   >${f.lbl}</button>
@@ -2529,7 +2560,7 @@
                   )
                   .join("")}
               </div>
-              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-2">
                 ${[
                   { k: "week", lbl: "Weekly" },
                   { k: "month", lbl: "Monthly" },
@@ -2540,7 +2571,7 @@
                   <button
                     data-ov-punch-gran="${g.k}"
                     onclick="setOvPunchLineGran('${g.k}')"
-                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                       state.overviewFilters.punchLineGran === g.k ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }"
                   >${g.lbl}</button>
@@ -2558,7 +2589,7 @@
                   <button
                     data-ov-punch-mode="${m.k}"
                     onclick="setOvPunchLineMode('${m.k}')"
-                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                       state.overviewFilters.punchLineMode === m.k ? "bg-rose-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }"
                   >${m.lbl}</button>
@@ -2568,7 +2599,7 @@
               </div>
             </div>
           </div>
-          <div class="mt-3 relative w-full" style="height:280px;">
+          <div class="mt-3 relative w-full" style="height:340px;">
             <canvas id="chart-ov-punch-line" class="w-full h-full"></canvas>
           </div>
         </div>
@@ -2576,13 +2607,13 @@
 
       <!-- 4. Table 2: Summary Matrix by SubSystem -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div class="p-3.5 bg-slate-50 border-b border-slate-200 rounded-t-2xl flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <i class="fas fa-sitemap text-teal-600"></i>
-            <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 rounded-t-2xl flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <i class="fas fa-sitemap text-teal-600 text-base"></i>
+            <h3 class="text-sm sm:text-base font-black text-slate-800 uppercase tracking-wide">
               2. Summary Matrix by SubSystem (ITR-A, Punch A/B/C, ITR-B)
             </h3>
-            <span id="ov-sub-count-badge" class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold">
+            <span id="ov-sub-count-badge" class="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold">
               ${filteredSubs.length} of ${stats.bySubSystem.length} SubSystems
             </span>
           </div>
@@ -2595,16 +2626,16 @@
                 id="ov-sub-search"
                 oninput="debounceOvSubSearch(this.value)"
                 placeholder="Search SubSystem No or Description..."
-                class="w-56 sm:w-64 pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs bg-white focus:outline-none focus:border-blue-500"
+                class="w-60 sm:w-72 pl-9 pr-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium bg-white focus:outline-none focus:border-blue-500 shadow-sm"
               />
-              <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
             </div>
           </div>
         </div>
 
         <!-- SubSystem Quick Filter Pills -->
-        <div class="px-3.5 py-2 bg-white border-b border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
-          <span class="text-[11px] font-bold text-slate-400 mr-1">Focus:</span>
+        <div class="px-4 py-2.5 bg-white border-b border-slate-100 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+          <span class="text-xs font-bold text-slate-500 mr-1">Focus:</span>
           ${[
             { k: "ALL", lbl: "All SubSystems" },
             { k: "OPEN_PUNCH_A", lbl: "With Open Punch A" },
@@ -2617,7 +2648,7 @@
               (f) => `
             <button
               onclick="setOvSubQuickFilter('${f.k}')"
-              class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 state.overviewFilters.subQuickFilter === f.k
                   ? "bg-slate-900 text-white shadow-sm"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -2628,18 +2659,18 @@
             .join("")}
         </div>
 
-        <div class="overflow-x-auto md:overflow-visible max-h-[75vh] md:max-h-none bg-white rounded-b-2xl">
+        <div class="overflow-x-auto md:overflow-x-clip md:overflow-y-visible max-h-[75vh] md:max-h-none bg-white rounded-b-2xl">
           <table id="ov-sub-table" class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
             <thead>
-              <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">#</th>
-                <th class="py-2.5 px-2.5 whitespace-nowrap">SubSystem No &amp; Description</th>
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">ITR-A (Comp / Total)</th>
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat A (Closed / Total)</th>
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat B (Closed / Total)</th>
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat C (Closed / Total)</th>
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">ITR-B (Comp / Total)</th>
-                <th class="py-2.5 px-2 text-center whitespace-nowrap">Overall %</th>
+              <tr class="bg-slate-900 text-white text-xs sm:text-sm uppercase font-black tracking-wider">
+                <th class="py-2.5 px-2.5 text-center whitespace-nowrap">#</th>
+                <th class="py-2.5 px-3 whitespace-nowrap">SubSystem No &amp; Description</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>ITR-A</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Comp / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Punch Cat A</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Closed / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Punch Cat B</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Closed / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Punch Cat C</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Closed / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>ITR-B</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Comp / Total</span></th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap"><div>Overall %</div><span class="block text-[11px] font-bold text-slate-400 tracking-normal normal-case">Progress</span></th>
               </tr>
             </thead>
             <tbody id="ov-sub-tbody">
@@ -3680,39 +3711,39 @@
             : "bg-orange-100 text-orange-800 border-orange-300";
 
         return `
-          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors">
-            <td class="py-2.5 px-3 text-center text-slate-400 font-mono whitespace-nowrap align-top">${startIdx + idx + 1}</td>
-            <td class="py-2.5 px-3 font-extrabold text-blue-700 font-mono whitespace-nowrap align-top">
-              <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left" title="${esc(plNo)}">
+          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs sm:text-sm transition-colors">
+            <td class="py-2.5 px-3 text-center text-slate-400 font-mono font-semibold whitespace-nowrap align-top">${startIdx + idx + 1}</td>
+            <td class="py-2.5 px-3 font-black text-blue-700 font-mono whitespace-nowrap align-top">
+              <button onclick="viewPunchDetail('${esc(plNo)}')" class="hover:underline text-left text-xs sm:text-sm" title="${esc(plNo)}">
                 ${esc(plNo)}
               </button>
             </td>
-            <td class="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap align-top" title="${esc(raisedNo)}">
+            <td class="py-2.5 px-3 font-mono text-slate-700 font-medium whitespace-nowrap align-top" title="${esc(raisedNo)}">
               ${esc(raisedNo) || "-"}
             </td>
-            <td class="py-2.5 px-3 font-semibold text-slate-800 font-mono whitespace-nowrap align-top">
+            <td class="py-2.5 px-3 font-bold text-slate-800 font-mono whitespace-nowrap align-top">
               <button onclick="setPlFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600" title="${esc(subNo)}">
                 ${esc(subNo)}
               </button>
             </td>
-            <td class="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap align-top">
+            <td class="py-2.5 px-3 font-mono font-black text-slate-900 whitespace-nowrap align-top">
               <button onclick="setPlFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600" title="${esc(tagNo)}">
                 ${esc(tagNo)}
               </button>
             </td>
-            <td class="py-2.5 px-3 text-slate-600 whitespace-nowrap max-w-xs md:max-w-sm truncate align-top" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
+            <td class="py-2.5 px-3 text-slate-600 font-medium whitespace-nowrap max-w-xs md:max-w-sm truncate align-top" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
             <td class="py-2.5 px-2 text-center whitespace-nowrap align-top">
-              <span class="px-2 py-0.5 rounded font-black text-[10px] border ${catBadge}">${esc(cat)}</span>
+              <span class="px-2.5 py-0.5 rounded-md font-black text-xs border ${catBadge}">${esc(cat)}</span>
             </td>
             <td class="py-2.5 px-2 text-center whitespace-nowrap align-top">
-              <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">${esc(status)}</span>
+              <span class="px-2.5 py-0.5 rounded-full font-black text-xs border ${statusBadge}">${esc(status)}</span>
             </td>
-            <td class="py-2.5 px-3 text-slate-700 font-medium whitespace-nowrap align-top" title="${esc(disc)}">${esc(disc)}</td>
-            <td class="py-2.5 px-4 text-slate-800 whitespace-normal break-words leading-relaxed min-w-[280px] max-w-xl font-sans text-xs align-top">
+            <td class="py-2.5 px-3 text-slate-700 font-semibold whitespace-nowrap align-top" title="${esc(disc)}">${esc(disc)}</td>
+            <td class="py-2.5 px-4 text-slate-800 whitespace-normal break-words leading-relaxed min-w-[280px] max-w-xl font-sans text-xs sm:text-sm align-top">
               ${esc(defect)}
             </td>
-            <td class="py-2.5 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap align-top">${esc(targetDate)}</td>
-            <td class="py-2.5 px-4 text-emerald-700 whitespace-normal break-words leading-relaxed min-w-[240px] max-w-lg font-sans text-xs align-top">
+            <td class="py-2.5 px-3 text-slate-600 font-mono text-xs sm:text-sm whitespace-nowrap align-top">${esc(targetDate)}</td>
+            <td class="py-2.5 px-4 text-emerald-800 whitespace-normal break-words leading-relaxed min-w-[240px] max-w-lg font-sans text-xs sm:text-sm align-top">
               ${corrective && corrective !== "-" ? `
                 <button
                   onclick="viewPunchDetail('${esc(plNo)}')"
@@ -3848,92 +3879,92 @@
       <!-- 1. KPI Cards Row (Dynamically Summarizes Filtered Data) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <!-- Total Punch -->
-        <div onclick="setPlFilter('status','ALL')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all">
+        <div onclick="setPlFilter('status','ALL')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Punch</p>
-              <h3 id="pl-kpi-total" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-slate-500">Total Punch</p>
+              <h3 id="pl-kpi-total" class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-clipboard-list"></i>
             </div>
           </div>
-          <p id="pl-kpi-total-sub" class="text-[10px] text-slate-500 mt-2">${isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} items` : "Total Punchlist Registry"}</p>
+          <p id="pl-kpi-total-sub" class="text-xs text-slate-500 font-medium mt-2">${isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} items` : "Total Punchlist Registry"}</p>
         </div>
 
         <!-- Cat A -->
-        <div onclick="setPlFilter('category','A')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-rose-200 shadow-sm hover:shadow-md hover:border-rose-400 transition-all ${
+        <div onclick="setPlFilter('category','A')" class="cursor-pointer bg-white rounded-2xl p-4 border border-rose-200 shadow-sm hover:shadow-md hover:border-rose-400 transition-all ${
           f.category === "A" ? "ring-2 ring-rose-500 bg-rose-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Category A</p>
-              <h3 id="pl-kpi-catA" class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${catA.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-rose-700">Category A</p>
+              <h3 id="pl-kpi-catA" class="text-2xl sm:text-3xl font-black text-rose-600 mt-1">${catA.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-skull-crossbones"></i>
             </div>
           </div>
-          <p class="text-[10px] text-rose-700 font-semibold mt-2">Critical Punch (Pre-CC)</p>
+          <p class="text-xs text-rose-700 font-semibold mt-2">Critical Punch (Pre-CC)</p>
         </div>
 
         <!-- Cat B -->
-        <div onclick="setPlFilter('category','B')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-400 transition-all ${
+        <div onclick="setPlFilter('category','B')" class="cursor-pointer bg-white rounded-2xl p-4 border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-400 transition-all ${
           f.category === "B" ? "ring-2 ring-amber-500 bg-amber-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-amber-700">Category B</p>
-              <h3 id="pl-kpi-catB" class="text-xl sm:text-2xl font-black text-amber-600 mt-1">${catB.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-amber-700">Category B</p>
+              <h3 id="pl-kpi-catB" class="text-2xl sm:text-3xl font-black text-amber-600 mt-1">${catB.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-triangle-exclamation"></i>
             </div>
           </div>
-          <p class="text-[10px] text-amber-700 font-semibold mt-2">Prior to Handover (Pre-Ready)</p>
+          <p class="text-xs text-amber-700 font-semibold mt-2">Prior to Handover (Pre-Ready)</p>
         </div>
 
         <!-- Cat C -->
-        <div onclick="setPlFilter('category','C')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-blue-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all ${
+        <div onclick="setPlFilter('category','C')" class="cursor-pointer bg-white rounded-2xl p-4 border border-blue-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all ${
           f.category === "C" ? "ring-2 ring-blue-500 bg-blue-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-blue-700">Category C</p>
-              <h3 id="pl-kpi-catC" class="text-xl sm:text-2xl font-black text-blue-600 mt-1">${catC.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-blue-700">Category C</p>
+              <h3 id="pl-kpi-catC" class="text-2xl sm:text-3xl font-black text-blue-600 mt-1">${catC.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-circle-info"></i>
             </div>
           </div>
-          <p class="text-[10px] text-blue-700 font-semibold mt-2">Agreed Carryover Punch</p>
+          <p class="text-xs text-blue-700 font-semibold mt-2">Agreed Carryover Punch</p>
         </div>
 
         <!-- Open Items -->
-        <div onclick="setPlFilter('status','Open')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-orange-200 shadow-sm hover:shadow-md hover:border-orange-400 transition-all ${
+        <div onclick="setPlFilter('status','Open')" class="cursor-pointer bg-white rounded-2xl p-4 border border-orange-200 shadow-sm hover:shadow-md hover:border-orange-400 transition-all ${
           f.status === "Open" ? "ring-2 ring-orange-500 bg-orange-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-orange-700">Status: Open</p>
-              <h3 id="pl-kpi-open" class="text-xl sm:text-2xl font-black text-orange-600 mt-1">${open.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-orange-700">Status: Open</p>
+              <h3 id="pl-kpi-open" class="text-2xl sm:text-3xl font-black text-orange-600 mt-1">${open.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-hourglass-start"></i>
             </div>
           </div>
-          <p class="text-[10px] text-orange-700 font-semibold mt-2">Pending Punch Clearance</p>
+          <p class="text-xs text-orange-700 font-semibold mt-2">Pending Punch Clearance</p>
         </div>
 
         <!-- Closed Items -->
-        <div onclick="setPlFilter('status','Closed')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all ${
+        <div onclick="setPlFilter('status','Closed')" class="cursor-pointer bg-white rounded-2xl p-4 border border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all ${
           f.status === "Closed" ? "ring-2 ring-emerald-500 bg-emerald-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Status: Closed</p>
+              <p class="text-xs font-black uppercase tracking-wider text-emerald-700">Status: Closed</p>
               <div class="flex items-baseline gap-1.5 mt-1">
-                <h3 id="pl-kpi-closed" class="text-xl sm:text-2xl font-black text-emerald-600">${closed.toLocaleString()}</h3>
+                <h3 id="pl-kpi-closed" class="text-2xl sm:text-3xl font-black text-emerald-600">${closed.toLocaleString()}</h3>
                 <span id="pl-kpi-pctClosed" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctClosed}%</span>
               </div>
             </div>
@@ -4352,33 +4383,33 @@
           : "bg-slate-100 text-slate-700 border-slate-300";
 
         return `
-          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs transition-colors h-10">
-            <td class="py-2 px-2 text-center text-slate-400 font-mono whitespace-nowrap overflow-hidden">${esc(no)}</td>
-            <td class="py-2 px-2 font-semibold text-slate-800 font-mono whitespace-nowrap overflow-hidden truncate">
+          <tr class="hover:bg-blue-50/40 border-b border-slate-100 text-xs sm:text-sm transition-colors h-11">
+            <td class="py-2.5 px-2.5 text-center text-slate-400 font-mono font-semibold whitespace-nowrap overflow-hidden">${esc(no)}</td>
+            <td class="py-2.5 px-2.5 font-bold text-slate-800 font-mono whitespace-nowrap overflow-hidden truncate">
               <button onclick="setCsFilter('subSystem', '${esc(subNo)}')" class="hover:text-blue-600 truncate" title="${esc(subNo)}">
                 ${esc(subNo)}
               </button>
             </td>
-            <td class="py-2 px-2 font-mono font-bold text-slate-900 whitespace-nowrap overflow-hidden truncate">
+            <td class="py-2.5 px-2.5 font-mono font-black text-slate-900 whitespace-nowrap overflow-hidden truncate">
               <button onclick="setCsFilter('tag', '${esc(tagNo)}')" class="hover:text-emerald-600 truncate" title="${esc(tagNo)}">
                 ${esc(tagNo)}
               </button>
             </td>
-            <td class="py-2 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
-            <td class="py-2 px-2 text-slate-700 font-medium whitespace-nowrap overflow-hidden truncate" title="${esc(disc)}">${esc(disc)}</td>
-            <td class="py-2 px-2 font-mono font-bold text-indigo-700 whitespace-nowrap overflow-hidden truncate" title="${esc(csType)}">${esc(csType)}</td>
-            <td class="py-2 px-1 text-center whitespace-nowrap overflow-hidden">
-              <span class="px-2 py-0.5 rounded-full font-bold text-[10px] border ${statusBadge}">
+            <td class="py-2.5 px-3 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(tagDesc)}">${esc(tagDesc)}</td>
+            <td class="py-2.5 px-2.5 text-slate-700 font-semibold whitespace-nowrap overflow-hidden truncate" title="${esc(disc)}">${esc(disc)}</td>
+            <td class="py-2.5 px-2.5 font-mono font-black text-indigo-700 whitespace-nowrap overflow-hidden truncate" title="${esc(csType)}">${esc(csType)}</td>
+            <td class="py-2.5 px-2 text-center whitespace-nowrap overflow-hidden">
+              <span class="px-2.5 py-0.5 rounded-full font-black text-xs border ${statusBadge}">
                 ${isComp ? "Completed" : "Remaining"}
               </span>
             </td>
-            <td class="py-2 px-2 font-mono text-[11px] whitespace-nowrap overflow-hidden truncate ${isComp ? "text-emerald-700 font-semibold" : "text-slate-400"}">
+            <td class="py-2.5 px-2.5 font-mono text-xs sm:text-sm whitespace-nowrap overflow-hidden truncate ${isComp ? "text-emerald-700 font-bold" : "text-slate-400"}">
               ${esc(compDate) || "-"}
             </td>
-            <td class="py-2 px-2 font-mono text-[11px] text-slate-500 whitespace-nowrap overflow-hidden truncate">${esc(planFinish) || "-"}</td>
-            <td class="py-2 px-1 text-center font-bold text-slate-700 font-mono whitespace-nowrap overflow-hidden">${esc(norm)}</td>
-            <td class="py-2 px-2 text-slate-600 whitespace-nowrap overflow-hidden truncate" title="${esc(contractor)}">${esc(contractor)}</td>
-            <td class="py-2 px-2 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(phase)}">
+            <td class="py-2.5 px-2.5 font-mono text-xs sm:text-sm text-slate-500 whitespace-nowrap overflow-hidden truncate">${esc(planFinish) || "-"}</td>
+            <td class="py-2.5 px-2 text-center font-black text-slate-800 font-mono whitespace-nowrap overflow-hidden">${esc(norm)}</td>
+            <td class="py-2.5 px-2.5 text-slate-600 whitespace-nowrap overflow-hidden truncate" title="${esc(contractor)}">${esc(contractor)}</td>
+            <td class="py-2.5 px-2.5 text-slate-700 whitespace-nowrap overflow-hidden truncate font-medium" title="${esc(phase)}">
               <button
                 onclick="viewChecksheetDetail('${esc(tagNo)}', '${esc(csType)}')"
                 class="hover:text-blue-600 hover:underline text-left truncate w-full"
@@ -4558,101 +4589,101 @@
       <!-- 1. KPI Cards Row (Dynamically Summarizes Filtered Data) -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <!-- Total Checksheets -->
-        <div onclick="setCsFilter('status','ALL')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all">
+        <div onclick="setCsFilter('status','ALL')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Checksheet</p>
-              <h3 id="cs-kpi-total" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-slate-500">Total Checksheet</p>
+              <h3 id="cs-kpi-total" class="text-2xl sm:text-3xl font-black text-slate-900 mt-1">${total.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-list-check"></i>
             </div>
           </div>
-          <p id="cs-kpi-total-sub" class="text-[10px] text-slate-500 mt-2">${isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} records` : "Total Quality Inspection Records (ITR)"}</p>
+          <p id="cs-kpi-total-sub" class="text-xs text-slate-500 font-medium mt-2">${isFiltered ? `Filtered: ${total.toLocaleString()} of ${totalAll.toLocaleString()} records` : "Total Quality Inspection Records (ITR)"}</p>
         </div>
 
         <!-- Completed Checksheets -->
-        <div onclick="setCsFilter('status','Completed')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all ${
+        <div onclick="setCsFilter('status','Completed')" class="cursor-pointer bg-white rounded-2xl p-4 border border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all ${
           f.status === "Completed" ? "ring-2 ring-emerald-500 bg-emerald-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Completed (Signed-off)</p>
+              <p class="text-xs font-black uppercase tracking-wider text-emerald-700">Completed (Signed-off)</p>
               <div class="flex items-baseline gap-1.5 mt-1">
-                <h3 id="cs-kpi-completed" class="text-xl sm:text-2xl font-black text-emerald-600">${completed.toLocaleString()}</h3>
-                <span id="cs-kpi-pctDone" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctDone}%</span>
+                <h3 id="cs-kpi-completed" class="text-2xl sm:text-3xl font-black text-emerald-600">${completed.toLocaleString()}</h3>
+                <span id="cs-kpi-pctDone" class="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">${pctDone}%</span>
               </div>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-check-double"></i>
             </div>
           </div>
-          <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+          <div class="mt-2.5 w-full bg-slate-100 h-2 rounded-full overflow-hidden">
             <div id="cs-kpi-done-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: ${pctDone}%"></div>
           </div>
         </div>
 
         <!-- Remaining Checksheets -->
-        <div onclick="setCsFilter('status','Remaining')" class="cursor-pointer bg-white rounded-2xl p-3.5 border border-rose-200 shadow-sm hover:shadow-md hover:border-rose-400 transition-all ${
+        <div onclick="setCsFilter('status','Remaining')" class="cursor-pointer bg-white rounded-2xl p-4 border border-rose-200 shadow-sm hover:shadow-md hover:border-rose-400 transition-all ${
           f.status === "Remaining" ? "ring-2 ring-rose-500 bg-rose-50/20" : ""
         }">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Remaining (Pending)</p>
-              <h3 id="cs-kpi-remaining" class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${remaining.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-rose-700">Remaining (Pending)</p>
+              <h3 id="cs-kpi-remaining" class="text-2xl sm:text-3xl font-black text-rose-600 mt-1">${remaining.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-clock"></i>
             </div>
           </div>
-          <p class="text-[10px] text-rose-700 font-semibold mt-2">Pending Sign-off & Completion</p>
+          <p class="text-xs text-rose-700 font-semibold mt-2">Pending Sign-off & Completion</p>
         </div>
 
         <!-- Total Norm Manhours -->
-        <div class="bg-white rounded-2xl p-3.5 border border-indigo-200 shadow-sm">
+        <div class="bg-white rounded-2xl p-4 border border-indigo-200 shadow-sm">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Total Manhours</p>
-              <h3 id="cs-kpi-norm" class="text-xl sm:text-2xl font-black text-indigo-600 mt-1">${totalNorm.toLocaleString()}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-indigo-700">Total Manhours</p>
+              <h3 id="cs-kpi-norm" class="text-2xl sm:text-3xl font-black text-indigo-600 mt-1">${totalNorm.toLocaleString()}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-user-gear"></i>
             </div>
           </div>
-          <p class="text-[10px] text-indigo-700 font-semibold mt-2">Total Planned Manhours (Norm)</p>
+          <p class="text-xs text-indigo-700 font-semibold mt-2">Total Planned Manhours (Norm)</p>
         </div>
 
         <!-- Completed Norm Manhours -->
-        <div class="bg-white rounded-2xl p-3.5 border border-teal-200 shadow-sm">
+        <div class="bg-white rounded-2xl p-4 border border-teal-200 shadow-sm">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-teal-700">Earned Manhours</p>
+              <p class="text-xs font-black uppercase tracking-wider text-teal-700">Earned Manhours</p>
               <div class="flex items-baseline gap-1.5 mt-1">
-                <h3 id="cs-kpi-earned" class="text-xl sm:text-2xl font-black text-teal-600">${compNorm.toLocaleString()}</h3>
-                <span id="cs-kpi-pctNorm" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800">${pctNorm}%</span>
+                <h3 id="cs-kpi-earned" class="text-2xl sm:text-3xl font-black text-teal-600">${compNorm.toLocaleString()}</h3>
+                <span id="cs-kpi-pctNorm" class="text-xs font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">${pctNorm}%</span>
               </div>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-chart-pie"></i>
             </div>
           </div>
-          <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+          <div class="mt-2.5 w-full bg-slate-100 h-2 rounded-full overflow-hidden">
             <div id="cs-kpi-norm-bar" class="bg-teal-500 h-full rounded-full transition-all duration-300" style="width: ${pctNorm}%"></div>
           </div>
         </div>
 
         <!-- Subsystems Count -->
-        <div class="bg-white rounded-2xl p-3.5 border border-purple-200 shadow-sm">
+        <div class="bg-white rounded-2xl p-4 border border-purple-200 shadow-sm">
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-wider text-purple-700">SubSystems</p>
-              <h3 id="cs-kpi-subs" class="text-xl sm:text-2xl font-black text-purple-600 mt-1">${isFiltered ? filteredSubSet.size : sortedSubs.length}</h3>
+              <p class="text-xs font-black uppercase tracking-wider text-purple-700">SubSystems</p>
+              <h3 id="cs-kpi-subs" class="text-2xl sm:text-3xl font-black text-purple-600 mt-1">${isFiltered ? filteredSubSet.size : sortedSubs.length}</h3>
             </div>
-            <div class="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">
+            <div class="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">
               <i class="fas fa-network-wired"></i>
             </div>
           </div>
-          <p class="text-[10px] text-purple-700 font-semibold mt-2">${isFiltered ? `${filteredSubSet.size} of ${sortedSubs.length} Active SubSystems` : "CPP Commissioning SubSystems"}</p>
+          <p class="text-xs text-purple-700 font-semibold mt-2">${isFiltered ? `${filteredSubSet.size} of ${sortedSubs.length} Active SubSystems` : "CPP Commissioning SubSystems"}</p>
         </div>
       </div>
 
