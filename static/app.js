@@ -33,6 +33,8 @@
       subSearch: "",
       subQuickFilter: "ALL", // 'ALL', 'OPEN_PUNCH_A', 'OPEN_PUNCH', 'REM_ITR_A', 'REM_ITR_B', 'DONE_100'
       chartMetric: "ALL_GATES", // 'ALL_GATES', 'ITR-A', 'PUNCH-A', 'PUNCH-B', 'PUNCH-C', 'ITR-B'
+      lineGranularity: "week", // 'week', 'month', 'day'
+      lineMode: "pct", // 'pct' | 'count'
     },
     overviewCache: null,
     deviceMode: window.innerWidth < 768 ? "phone" : "laptop",
@@ -207,6 +209,16 @@
     return false;
   }
 
+  function updateAppHeaderStickyOffset() {
+    const hdr = document.getElementById("app-top-header");
+    if (!hdr) return;
+    const h = Math.ceil(hdr.getBoundingClientRect().height);
+    if (h > 0) {
+      document.documentElement.style.setProperty("--app-header-h", `${h}px`);
+    }
+  }
+  window.addEventListener("resize", updateAppHeaderStickyOffset);
+
   window.addEventListener("DOMContentLoaded", () => {
     initDeviceMode();
     if (state.data) {
@@ -340,7 +352,9 @@
           ? sysKey
           : "All Scope";
       const gateLabel =
-        srcKey === "checksheet"
+        srcKey === "subsystem"
+          ? "Full Detail"
+          : srcKey === "checksheet"
           ? itrKey !== "ALL"
             ? itrKey
             : "Checksheets"
@@ -368,8 +382,12 @@
       localFilters: {
         search: "",
         status: stKey,
+        section: criteria.section || "ALL",
+        gate: criteria.gate || "ALL",
       },
       limit: BATCH_SIZE,
+      limitPl: BATCH_SIZE,
+      limitCs: BATCH_SIZE,
     };
 
     state.detailTabs.push(newTab);
@@ -447,23 +465,33 @@
     const detailTabsHtml = state.detailTabs
       .map((t) => {
         const active = state.activeTab === t.id;
-        const rowsCount = getDetailFilteredRows(t).length;
+        const isDetSub = t.source === "subsystem";
         const isDetPl = t.source === "punchlist";
+        const rowsCount = isDetSub
+          ? getSubDetailCounts(t).totalFiltered
+          : getDetailFilteredRows(t).length;
+        const tabActiveCls = isDetSub
+          ? "bg-teal-600 text-white border-teal-500 shadow-md ring-2 ring-white/20"
+          : isDetPl
+          ? "bg-rose-600 text-white border-rose-500 shadow-md ring-2 ring-white/20"
+          : "bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-white/20";
+        const badgeCls = isDetSub
+          ? "bg-teal-900/50 text-teal-100"
+          : isDetPl
+          ? "bg-rose-900/50 text-rose-100"
+          : "bg-blue-900/50 text-blue-100";
+        const badgeLabel = isDetSub ? "SUB" : isDetPl ? "PL" : "ITR";
         return `
           <div
             onclick="switchMainTab('${esc(t.id)}')"
             class="group cursor-pointer px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm shrink-0 border ${
               active
-                ? isDetPl
-                  ? "bg-rose-600 text-white border-rose-500 shadow-md ring-2 ring-white/20"
-                  : "bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-white/20"
+                ? tabActiveCls
                 : "bg-slate-800/90 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
             }"
             title="${esc(t.title)}"
           >
-            <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-              isDetPl ? "bg-rose-900/50 text-rose-100" : "bg-blue-900/50 text-blue-100"
-            }">${isDetPl ? "PL" : "ITR"}</span>
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${badgeCls}">${badgeLabel}</span>
             <span class="max-w-[160px] truncate">${esc(t.title)}</span>
             <span id="detail-tab-badge-${esc(t.id)}" class="px-1.5 py-0.5 rounded-full text-[10px] font-black ${
               active ? "bg-white/20 text-white" : "bg-slate-700 text-slate-300"
@@ -582,6 +610,7 @@
         renderOverviewTab(container);
       }
     }
+    requestAnimationFrame(updateAppHeaderStickyOffset);
   }
 
   // =========================================================================
@@ -883,14 +912,23 @@
     return filteredSubs
       .map((s, idx) => {
         const sub = s.subSystem;
+        const subFullCrit = esc(JSON.stringify({ source: "subsystem", system: sys, subSystem: sub, title: `${sub} • Full Detail` }));
         const itrAllCrit = esc(JSON.stringify({ source: "checksheet", system: sys, subSystem: sub, itrGroup: "ALL", status: "ALL", title: `${sub} • All ITRs` }));
         const plAllCrit = esc(JSON.stringify({ source: "punchlist", system: sys, subSystem: sub, category: "ALL", status: "ALL", title: `${sub} • All Punch` }));
 
         return `
           <tr class="hover:bg-blue-50/30 border-b border-slate-100 text-xs transition-colors">
-            <td class="py-2.5 px-2.5 text-center text-slate-400 font-mono whitespace-nowrap">${idx + 1}</td>
-            <td class="py-2.5 px-3 min-w-[210px]">
-              <div class="font-mono font-extrabold text-slate-900 text-xs">${esc(sub)}</div>
+            <td class="py-2.5 px-2 text-center text-slate-400 font-mono whitespace-nowrap">${idx + 1}</td>
+            <td class="py-2.5 px-2.5 min-w-[180px] max-w-[260px]">
+              <button
+                type="button"
+                onclick="openDetailTab(${subFullCrit})"
+                class="font-mono font-extrabold text-blue-700 hover:text-blue-900 hover:underline text-xs inline-flex items-center gap-1.5 text-left cursor-pointer group/sub"
+                title="Open full detail for SubSystem ${esc(sub)} (ITR-A/B & Punchlist A/B/C) in new tab"
+              >
+                <span>${esc(sub)}</span>
+                <i class="fas fa-arrow-up-right-from-square text-[9px] text-blue-400 group-hover/sub:text-blue-700"></i>
+              </button>
               ${s.description ? `<div class="text-[11px] text-slate-500 truncate max-w-[240px]" title="${esc(s.description)}">${esc(s.description)}</div>` : ""}
               <div class="flex items-center gap-1.5 mt-1">
                 <button onclick="openDetailTab(${itrAllCrit})" class="px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white text-[10px] font-bold transition-colors">All ITRs</button>
@@ -982,6 +1020,244 @@
       }`;
     });
   };
+
+  window.setOvLineGranularity = function (gran) {
+    state.overviewFilters.lineGranularity = gran;
+    const gBtns = document.querySelectorAll("[data-ov-line-gran]");
+    gBtns.forEach((btn) => {
+      const active = btn.getAttribute("data-ov-line-gran") === gran;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderOverviewLineChart();
+  };
+
+  window.setOvLineMode = function (mode) {
+    state.overviewFilters.lineMode = mode;
+    const mBtns = document.querySelectorAll("[data-ov-line-mode]");
+    mBtns.forEach((btn) => {
+      const active = btn.getAttribute("data-ov-line-mode") === mode;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderOverviewLineChart();
+  };
+
+  const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  function parseDdMmYyyyParts(dateStr) {
+    if (!dateStr || typeof dateStr !== "string") return null;
+    const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(dateStr.trim());
+    if (!m) return null;
+    const dd = Number(m[1]);
+    const mm = Number(m[2]);
+    const yyyy = Number(m[3]);
+    if (!dd || !mm || !yyyy || mm > 12 || dd > 31) return null;
+    return { dd, mm, yyyy, mStr: m[2], dStr: m[1], yStr: m[3], iso: `${m[3]}-${m[2]}-${m[1]}` };
+  }
+
+  function dateToBucket(parts, granularity) {
+    if (!parts) return null;
+    if (granularity === "month") {
+      return {
+        key: `${parts.yStr}-${parts.mStr}`,
+        label: `${MONTHS_SHORT[parts.mm - 1]} ${parts.yStr.slice(2)}`,
+      };
+    }
+    if (granularity === "day") {
+      return {
+        key: parts.iso,
+        label: `${parts.dStr} ${MONTHS_SHORT[parts.mm - 1]}`,
+      };
+    }
+    // Default: week (Monday start via pure UTC arithmetic)
+    const utcMs = Date.UTC(parts.yyyy, parts.mm - 1, parts.dd);
+    const utcDay = new Date(utcMs).getUTCDay(); // 0=Sun..6=Sat
+    const diffToMon = (utcDay + 6) % 7;
+    const monDate = new Date(utcMs - diffToMon * 86400000);
+    const my = monDate.getUTCFullYear();
+    const mm = String(monDate.getUTCMonth() + 1).padStart(2, "0");
+    const md = String(monDate.getUTCDate()).padStart(2, "0");
+    return {
+      key: `${my}-${mm}-${md}`,
+      label: `${md} ${MONTHS_SHORT[monDate.getUTCMonth()]} ${String(my).slice(2)}`,
+    };
+  }
+
+  function computeProgressTimeline(sysFilter, granularity) {
+    const bucketMap = new Map();
+    const ensureBucket = (key, label) => {
+      let b = bucketMap.get(key);
+      if (!b) {
+        b = { key, label, itrA: 0, itrB: 0, punchA: 0, punchB: 0, punchC: 0 };
+        bucketMap.set(key, b);
+      }
+      return b;
+    };
+
+    let totItrA = 0, totItrB = 0, totPA = 0, totPB = 0, totPC = 0;
+
+    // 1. Checksheet Completion Dates
+    const csRows = state.data.checksheet.rows;
+    const csPool = state.data.checksheet.pool;
+    for (let i = 0; i < csRows.length; i++) {
+      const r = csRows[i];
+      const subNo = csPool[r[1]] || "";
+      if (sysFilter !== "ALL" && inferSystemFromSub(subNo) !== sysFilter) continue;
+      const csType = (csPool[r[5]] || "").trim().toUpperCase();
+      const isA = csType.endsWith("A");
+      const isB = !isA && csType.endsWith("B");
+      if (isA) totItrA++;
+      else if (isB) totItrB++;
+      else continue;
+
+      const compStr = csPool[r[6]] || "";
+      if (!compStr) continue;
+      const parts = parseDdMmYyyyParts(compStr);
+      const bk = dateToBucket(parts, granularity);
+      if (!bk) continue;
+      const obj = ensureBucket(bk.key, bk.label);
+      if (isA) obj.itrA++;
+      else obj.itrB++;
+    }
+
+    // 2. Punchlist Closure Dates
+    const plRows = state.data.punchlist.rows;
+    const plPool = state.data.punchlist.pool;
+    for (let i = 0; i < plRows.length; i++) {
+      const r = plRows[i];
+      const sysNo = plPool[r[0]] || "";
+      const subNo = plPool[r[1]] || "";
+      if (sysFilter !== "ALL" && sysNo !== sysFilter && inferSystemFromSub(subNo) !== sysFilter) continue;
+      const cat = (r[8] || "B").toUpperCase();
+      const status = plPool[r[9]] || "Open";
+      if (cat === "A") totPA++;
+      else if (cat === "B") totPB++;
+      else if (cat === "C") totPC++;
+      else continue;
+
+      if (status !== "Closed") continue;
+      const closedStr = plPool[r[11]] || "";
+      const parts = parseDdMmYyyyParts(closedStr);
+      const bk = dateToBucket(parts, granularity);
+      if (!bk) continue;
+      const obj = ensureBucket(bk.key, bk.label);
+      if (cat === "A") obj.punchA++;
+      else if (cat === "B") obj.punchB++;
+      else obj.punchC++;
+    }
+
+    const sortedAll = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    let cumItrA = 0, cumItrB = 0, cumPA = 0, cumPB = 0, cumPC = 0;
+    const fullPoints = sortedAll.map((b) => {
+      cumItrA += b.itrA;
+      cumItrB += b.itrB;
+      cumPA += b.punchA;
+      cumPB += b.punchB;
+      cumPC += b.punchC;
+      return {
+        key: b.key,
+        label: b.label,
+        delta: { itrA: b.itrA, itrB: b.itrB, punchA: b.punchA, punchB: b.punchB, punchC: b.punchC },
+        cum: { itrA: cumItrA, itrB: cumItrB, punchA: cumPA, punchB: cumPB, punchC: cumPC },
+        pct: {
+          itrA: totItrA > 0 ? Number(((cumItrA / totItrA) * 100).toFixed(1)) : null,
+          itrB: totItrB > 0 ? Number(((cumItrB / totItrB) * 100).toFixed(1)) : null,
+          punchA: totPA > 0 ? Number(((cumPA / totPA) * 100).toFixed(1)) : null,
+          punchB: totPB > 0 ? Number(((cumPB / totPB) * 100).toFixed(1)) : null,
+          punchC: totPC > 0 ? Number(((cumPC / totPC) * 100).toFixed(1)) : null,
+        },
+      };
+    });
+
+    const points = granularity === "day" && fullPoints.length > 45 ? fullPoints.slice(-45) : fullPoints;
+    return {
+      points,
+      totals: { itrA: totItrA, itrB: totItrB, punchA: totPA, punchB: totPB, punchC: totPC },
+    };
+  }
+
+  function renderOverviewLineChart() {
+    if (!window.Chart) return;
+    const canvas = document.getElementById("chart-ov-progress-line");
+    if (!canvas) return;
+
+    if (state.charts.ovLine) state.charts.ovLine.destroy();
+    const sys = state.overviewFilters.system || "ALL";
+    const granularity = state.overviewFilters.lineGranularity || "week";
+    const mode = state.overviewFilters.lineMode || "pct";
+
+    const tl = computeProgressTimeline(sys, granularity);
+    const pts = tl.points;
+    const labels = pts.map((p) => p.label);
+
+    const seriesDefs = [
+      { key: "itrA", label: "ITR-A", color: "#2563EB", dash: [] },
+      { key: "itrB", label: "ITR-B", color: "#4F46E5", dash: [] },
+      { key: "punchA", label: "Punch Cat A", color: "#E11D48", dash: [5, 3] },
+      { key: "punchB", label: "Punch Cat B", color: "#D97706", dash: [5, 3] },
+      { key: "punchC", label: "Punch Cat C", color: "#0D9488", dash: [2, 2] },
+    ];
+
+    const datasets = seriesDefs.map((s) => ({
+      label: s.label,
+      data: pts.map((p) => (mode === "pct" ? p.pct[s.key] : p.cum[s.key])),
+      borderColor: s.color,
+      backgroundColor: s.color + "18",
+      borderWidth: 2.4,
+      borderDash: s.dash,
+      tension: 0.25,
+      spanGaps: true,
+      pointRadius: pts.length > 35 ? 1.8 : 3,
+      pointHoverRadius: 5,
+      fill: false,
+    }));
+
+    state.charts.ovLine = new Chart(canvas, {
+      type: "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { position: "top", labels: { boxWidth: 14, usePointStyle: true, font: { size: 11, weight: "bold" } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const s = seriesDefs[ctx.datasetIndex];
+                const pt = pts[ctx.dataIndex];
+                if (!pt || !s) return "";
+                const cum = pt.cum[s.key];
+                const tot = tl.totals[s.key];
+                const pct = pt.pct[s.key];
+                const delta = pt.delta[s.key];
+                if (tot === 0) return `${s.label}: No items in scope`;
+                const deltaStr = delta > 0 ? ` (+${delta.toLocaleString()} in period)` : "";
+                return `${s.label}: ${pct}% (${cum.toLocaleString()}/${tot.toLocaleString()})${deltaStr}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 18, font: { size: 10 } },
+          },
+          y: {
+            beginAtZero: true,
+            max: mode === "pct" ? 100 : undefined,
+            ticks: {
+              font: { size: 10 },
+              callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()),
+            },
+          },
+        },
+      },
+    });
+  }
 
   function renderOverviewCharts(stats) {
     if (!window.Chart) return;
@@ -1398,6 +1674,65 @@
         </div>
       </div>
 
+      <!-- 2B. Completion Progress Trend Line Chart (ITR-A/B & Punch Cat A/B/C) -->
+      <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+              <i class="fas fa-chart-line text-indigo-600"></i>
+              Completion Progress Trend — ITR-A / ITR-B &amp; Punch List (Cat A / B / C)
+            </h3>
+            <p class="text-[11px] text-slate-500">Cumulative completion &amp; closure progression over time based on PMS Complete Date &amp; Closed Date</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1 border-r border-slate-200 pr-2">
+              ${[
+                { k: "week", lbl: "Weekly" },
+                { k: "month", lbl: "Monthly" },
+                { k: "day", lbl: "Daily (45d)" },
+              ]
+                .map(
+                  (g) => `
+                <button
+                  data-ov-line-gran="${g.k}"
+                  onclick="setOvLineGranularity('${g.k}')"
+                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    state.overviewFilters.lineGranularity === g.k
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }"
+                >${g.lbl}</button>
+              `
+                )
+                .join("")}
+            </div>
+            <div class="flex items-center gap-1">
+              ${[
+                { k: "pct", lbl: "% Complete" },
+                { k: "count", lbl: "Closed Count" },
+              ]
+                .map(
+                  (m) => `
+                <button
+                  data-ov-line-mode="${m.k}"
+                  onclick="setOvLineMode('${m.k}')"
+                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    state.overviewFilters.lineMode === m.k
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }"
+                >${m.lbl}</button>
+              `
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 relative w-full" style="height:310px;">
+          <canvas id="chart-ov-progress-line" class="w-full h-full"></canvas>
+        </div>
+      </div>
+
       <!-- 3. Table 1: Summary Matrix by Discipline -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
@@ -1540,8 +1875,8 @@
       </div>
 
       <!-- 4. Table 2: Summary Matrix by SubSystem -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div class="p-3.5 bg-slate-50 border-b border-slate-200 rounded-t-2xl flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <i class="fas fa-sitemap text-teal-600"></i>
             <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
@@ -1593,18 +1928,18 @@
             .join("")}
         </div>
 
-        <div class="overflow-x-auto overflow-y-auto max-h-[600px] bg-white">
-          <table class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
+        <div class="overflow-x-auto md:overflow-visible max-h-[75vh] md:max-h-none bg-white rounded-b-2xl">
+          <table id="ov-sub-table" class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
-                <th class="py-2.5 px-2.5 text-center whitespace-nowrap">#</th>
-                <th class="py-2.5 px-3 whitespace-nowrap">SubSystem No & Description</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-A (Comp / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch Cat A (Closed / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch Cat B (Closed / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch Cat C (Closed / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-B (Comp / Total)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Overall %</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">#</th>
+                <th class="py-2.5 px-2.5 whitespace-nowrap">SubSystem No & Description</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">ITR-A (Comp / Total)</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat A (Closed / Total)</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat B (Closed / Total)</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat C (Closed / Total)</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">ITR-B (Comp / Total)</th>
+                <th class="py-2.5 px-2 text-center whitespace-nowrap">Overall %</th>
               </tr>
             </thead>
             <tbody id="ov-sub-tbody">
@@ -1616,7 +1951,11 @@
     `;
 
     requestAnimationFrame(() => {
-      if (state.activeTab === "overview") renderOverviewCharts(stats);
+      if (state.activeTab === "overview") {
+        updateAppHeaderStickyOffset();
+        renderOverviewCharts(stats);
+        renderOverviewLineChart();
+      }
     });
   }
 
@@ -1716,11 +2055,190 @@
     return { total, closed, open, pct };
   }
 
+  function getSubDetailCounts(tab) {
+    const subNo = tab.criteria.subSystem;
+    const plRows = state.data.punchlist.rows;
+    const plPool = state.data.punchlist.pool;
+    const csRows = state.data.checksheet.rows;
+    const csPool = state.data.checksheet.pool;
+
+    const itrA = makeGateBucket();
+    const itrB = makeGateBucket();
+    const punchA = makeGateBucket();
+    const punchB = makeGateBucket();
+    const punchC = makeGateBucket();
+
+    const plBase = [];
+    for (let i = 0; i < plRows.length; i++) {
+      const r = plRows[i];
+      if ((plPool[r[1]] || "") !== subNo) continue;
+      plBase.push(r);
+      const cat = (r[8] || "B").toUpperCase();
+      const closed = (plPool[r[9]] || "") === "Closed";
+      const target = cat === "A" ? punchA : cat === "C" ? punchC : punchB;
+      target.total++;
+      if (closed) target.closed++;
+    }
+
+    const csBase = [];
+    for (let i = 0; i < csRows.length; i++) {
+      const r = csRows[i];
+      if ((csPool[r[1]] || "") !== subNo) continue;
+      csBase.push(r);
+      const csType = (csPool[r[5]] || "").trim().toUpperCase();
+      const comp = Boolean(csPool[r[6]]);
+      const target = csType.endsWith("A") ? itrA : csType.endsWith("B") ? itrB : null;
+      if (target) {
+        target.total++;
+        if (comp) target.closed++;
+      }
+    }
+
+    finalizeGateBucket(itrA);
+    finalizeGateBucket(itrB);
+    finalizeGateBucket(punchA);
+    finalizeGateBucket(punchB);
+    finalizeGateBucket(punchC);
+
+    const stQ = tab.localFilters.status || "ALL";
+    const gateQ = tab.localFilters.gate || "ALL";
+    const q = (tab.localFilters.search || "").trim().toLowerCase();
+
+    const plFiltered = plBase.filter((r) => {
+      const cat = (r[8] || "B").toUpperCase();
+      const status = plPool[r[9]] || "Open";
+      if (gateQ === "ITR-A" || gateQ === "ITR-B") return false;
+      if (gateQ === "PUNCH-A" && cat !== "A") return false;
+      if (gateQ === "PUNCH-B" && cat !== "B") return false;
+      if (gateQ === "PUNCH-C" && cat !== "C") return false;
+      if (stQ === "Closed" && status !== "Closed") return false;
+      if (stQ === "Open" && status === "Closed") return false;
+      if (q) {
+        const hay = `${r[2]} ${plPool[r[3]] || ""} ${r[5]} ${plPool[r[6]] || ""} ${plPool[r[15]] || ""} ${plPool[r[16]] || ""} ${plPool[r[17]] || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const csFiltered = csBase.filter((r) => {
+      const csType = (csPool[r[5]] || "").trim().toUpperCase();
+      const isComp = Boolean(csPool[r[6]]);
+      if (gateQ.startsWith("PUNCH-")) return false;
+      if (gateQ === "ITR-A" && !csType.endsWith("A")) return false;
+      if (gateQ === "ITR-B" && !csType.endsWith("B")) return false;
+      if (stQ === "Closed" && !isComp) return false;
+      if (stQ === "Open" && isComp) return false;
+      if (q) {
+        const hay = `${r[2]} ${csPool[r[3]] || ""} ${csPool[r[4]] || ""} ${csPool[r[5]] || ""} ${csPool[r[11]] || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const overallTotal = itrA.total + itrB.total + punchA.total + punchB.total + punchC.total;
+    const overallClosed = itrA.closed + itrB.closed + punchA.closed + punchB.closed + punchC.closed;
+    const overallPct = overallTotal > 0 ? Number(((overallClosed / overallTotal) * 100).toFixed(1)) : 0;
+
+    return {
+      itrA,
+      itrB,
+      punchA,
+      punchB,
+      punchC,
+      overallTotal,
+      overallClosed,
+      overallPct,
+      plBase,
+      csBase,
+      plFiltered,
+      csFiltered,
+      totalFiltered: plFiltered.length + csFiltered.length,
+    };
+  }
+
+  window.setSubDetailSection = function (tabId, sec) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    tab.localFilters.section = sec;
+    if (sec === "punchlist" && (tab.localFilters.gate || "").startsWith("ITR-")) tab.localFilters.gate = "ALL";
+    if (sec === "checksheet" && (tab.localFilters.gate || "").startsWith("PUNCH-")) tab.localFilters.gate = "ALL";
+    renderTabBar();
+    renderTabContent();
+  };
+
+  window.setSubDetailGate = function (tabId, gate) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const nextGate = tab.localFilters.gate === gate ? "ALL" : gate;
+    tab.localFilters.gate = nextGate;
+    if (nextGate === "ALL") tab.localFilters.section = "ALL";
+    else if (nextGate.startsWith("ITR-")) tab.localFilters.section = "checksheet";
+    else if (nextGate.startsWith("PUNCH-")) tab.localFilters.section = "punchlist";
+    tab.limitPl = BATCH_SIZE;
+    tab.limitCs = BATCH_SIZE;
+    renderTabBar();
+    renderTabContent();
+  };
+
+  window.handleSubDetailSectionScroll = function (container, tabId, sec) {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 300) {
+      window.loadMoreSubDetailSection(tabId, sec);
+    }
+  };
+
+  window.loadMoreSubDetailSection = function (tabId, sec) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const subData = getSubDetailCounts(tab);
+    const isPl = sec === "punchlist";
+    const rows = isPl ? subData.plFiltered : subData.csFiltered;
+    const limitKey = isPl ? "limitPl" : "limitCs";
+    const cur = tab[limitKey] || BATCH_SIZE;
+    if (cur >= rows.length) return;
+    const next = Math.min(rows.length, cur + BATCH_SIZE);
+    const slice = rows.slice(cur, next);
+    tab[limitKey] = next;
+
+    const tbody = document.getElementById(`detail-sub-${isPl ? "pl" : "cs"}-tbody-${tab.id}`);
+    if (tbody) tbody.insertAdjacentHTML("beforeend", isPl ? renderPlTableRows(slice, cur) : renderCsTableRows(slice, cur));
+
+    const stEl = document.getElementById(`detail-sub-${isPl ? "pl" : "cs"}-status-${tab.id}`);
+    if (stEl) {
+      stEl.innerHTML =
+        next >= rows.length
+          ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${rows.length.toLocaleString()} items loaded</span>`
+          : `<span class="text-blue-600 font-medium"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${next.toLocaleString()} of ${rows.length.toLocaleString()} items. Scroll down for more...</span>`;
+    }
+  };
+
+  window.loadAllSubDetailSection = function (tabId, sec) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const subData = getSubDetailCounts(tab);
+    const isPl = sec === "punchlist";
+    const rows = isPl ? subData.plFiltered : subData.csFiltered;
+    const limitKey = isPl ? "limitPl" : "limitCs";
+    const cur = tab[limitKey] || BATCH_SIZE;
+    if (cur >= rows.length) return;
+    const slice = rows.slice(cur);
+    tab[limitKey] = rows.length;
+
+    const tbody = document.getElementById(`detail-sub-${isPl ? "pl" : "cs"}-tbody-${tab.id}`);
+    if (tbody) tbody.insertAdjacentHTML("beforeend", isPl ? renderPlTableRows(slice, cur) : renderCsTableRows(slice, cur));
+
+    const stEl = document.getElementById(`detail-sub-${isPl ? "pl" : "cs"}-status-${tab.id}`);
+    if (stEl) {
+      stEl.innerHTML = `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${rows.length.toLocaleString()} items loaded</span>`;
+    }
+  };
+
   window.setDetailStatusFilter = function (tabId, st) {
     const tab = state.detailTabs.find((t) => t.id === tabId);
     if (!tab) return;
     tab.localFilters.status = st;
     tab.limit = BATCH_SIZE;
+    tab.limitPl = BATCH_SIZE;
+    tab.limitCs = BATCH_SIZE;
     renderTabBar();
     renderTabContent();
   };
@@ -1732,6 +2250,39 @@
     tab.localFilters.search = val;
     clearTimeout(debounceDetailTimer);
     debounceDetailTimer = setTimeout(() => {
+      if (tab.source === "subsystem") {
+        tab.limitPl = BATCH_SIZE;
+        tab.limitCs = BATCH_SIZE;
+        const subData = getSubDetailCounts(tab);
+        const visPl = subData.plFiltered.slice(0, tab.limitPl);
+        const visCs = subData.csFiltered.slice(0, tab.limitCs);
+        const plTbody = document.getElementById(`detail-sub-pl-tbody-${tab.id}`);
+        if (plTbody) plTbody.innerHTML = visPl.length ? renderPlTableRows(visPl, 0) : `<tr><td colspan="12" class="py-8 text-center text-slate-400 text-xs">No matching punchlist items in this SubSystem</td></tr>`;
+        const csTbody = document.getElementById(`detail-sub-cs-tbody-${tab.id}`);
+        if (csTbody) csTbody.innerHTML = visCs.length ? renderCsTableRows(visCs, 0) : `<tr><td colspan="12" class="py-8 text-center text-slate-400 text-xs">No matching checksheets in this SubSystem</td></tr>`;
+        const plStEl = document.getElementById(`detail-sub-pl-status-${tab.id}`);
+        if (plStEl) {
+          plStEl.innerHTML =
+            visPl.length >= subData.plFiltered.length
+              ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${subData.plFiltered.length.toLocaleString()} items loaded</span>`
+              : `<span class="text-blue-600 font-medium"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${visPl.length.toLocaleString()} of ${subData.plFiltered.length.toLocaleString()} items. Scroll down for more...</span>`;
+        }
+        const csStEl = document.getElementById(`detail-sub-cs-status-${tab.id}`);
+        if (csStEl) {
+          csStEl.innerHTML =
+            visCs.length >= subData.csFiltered.length
+              ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${subData.csFiltered.length.toLocaleString()} items loaded</span>`
+              : `<span class="text-blue-600 font-medium"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${visCs.length.toLocaleString()} of ${subData.csFiltered.length.toLocaleString()} items. Scroll down for more...</span>`;
+        }
+        const plBadge = document.getElementById(`detail-sub-pl-count-${tab.id}`);
+        if (plBadge) plBadge.textContent = `${subData.plFiltered.length.toLocaleString()} items`;
+        const csBadge = document.getElementById(`detail-sub-cs-count-${tab.id}`);
+        if (csBadge) csBadge.textContent = `${subData.csFiltered.length.toLocaleString()} items`;
+        const tabBadge = document.getElementById(`detail-tab-badge-${tab.id}`);
+        if (tabBadge) tabBadge.textContent = subData.totalFiltered.toLocaleString();
+        return;
+      }
+
       const filtered = getDetailFilteredRows(tab);
       tab.limit = Math.min(filtered.length, BATCH_SIZE);
       const visible = filtered.slice(0, tab.limit);
@@ -1824,7 +2375,261 @@
     showToast(`Loaded all ${filtered.length.toLocaleString()} items into continuous list!`, "success");
   };
 
+  function renderSubSystemDetailTab(tab, container) {
+    const c = tab.criteria;
+    const subNo = c.subSystem;
+    const subDesc = (state.data.subsystems && state.data.subsystems[subNo]) || "";
+    const d = getSubDetailCounts(tab);
+    const activeSec = tab.localFilters.section || "ALL";
+    const activeGate = tab.localFilters.gate || "ALL";
+    const activeSt = tab.localFilters.status || "ALL";
+
+    tab.limitPl = Math.min(d.plFiltered.length, Math.max(tab.limitPl || BATCH_SIZE, BATCH_SIZE));
+    tab.limitCs = Math.min(d.csFiltered.length, Math.max(tab.limitCs || BATCH_SIZE, BATCH_SIZE));
+    const visPl = d.plFiltered.slice(0, tab.limitPl);
+    const visCs = d.csFiltered.slice(0, tab.limitCs);
+
+    const gateCards = [
+      { k: "ITR-A", title: "ITR-A", bucket: d.itrA, bg: "bg-blue-50 border-blue-200 text-blue-800", act: "bg-blue-600 text-white border-blue-600 shadow" },
+      { k: "PUNCH-A", title: "Punch Cat A", bucket: d.punchA, bg: "bg-rose-50 border-rose-200 text-rose-800", act: "bg-rose-600 text-white border-rose-600 shadow" },
+      { k: "PUNCH-B", title: "Punch Cat B", bucket: d.punchB, bg: "bg-amber-50 border-amber-200 text-amber-800", act: "bg-amber-600 text-white border-amber-600 shadow" },
+      { k: "PUNCH-C", title: "Punch Cat C", bucket: d.punchC, bg: "bg-sky-50 border-sky-200 text-sky-800", act: "bg-sky-600 text-white border-sky-600 shadow" },
+      { k: "ITR-B", title: "ITR-B", bucket: d.itrB, bg: "bg-indigo-50 border-indigo-200 text-indigo-800", act: "bg-indigo-600 text-white border-indigo-600 shadow" },
+    ];
+
+    const showPunch = (activeSec === "ALL" || activeSec === "punchlist") && !activeGate.startsWith("ITR-");
+    const showCheck = (activeSec === "ALL" || activeSec === "checksheet") && !activeGate.startsWith("PUNCH-");
+
+    container.innerHTML = `
+      <!-- 1. SubSystem Full Dossier Banner -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="switchMainTab('overview')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5">
+              <i class="fas fa-arrow-left"></i> Back to Overview
+            </button>
+            <span class="px-2.5 py-1 rounded-lg text-xs font-black bg-teal-100 text-teal-800">
+              SUBSYSTEM FULL DETAIL
+            </span>
+            <h2 class="text-sm sm:text-base font-black text-slate-900 font-mono">${esc(subNo)}</h2>
+            ${subDesc ? `<span class="text-xs sm:text-sm font-semibold text-slate-600">— ${esc(subDesc)}</span>` : ""}
+            <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-black">
+              Overall ${d.overallPct}% (${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()})
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              onclick="window.open('${esc(buildDetailUrl(c))}', '_blank')"
+              class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1"
+              title="Open this SubSystem detail in a new browser tab"
+            >
+              <i class="fas fa-external-link-alt text-[10px]"></i>
+              <span class="hidden sm:inline">Pop Out</span>
+            </button>
+            <button
+              onclick="closeDetailTab('${esc(tab.id)}')"
+              class="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-bold flex items-center gap-1 transition-colors"
+            >
+              <i class="fas fa-times"></i> Close Tab
+            </button>
+          </div>
+        </div>
+
+        <!-- 5 Gate Cards (Click any gate to focus) -->
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          ${gateCards
+            .map((gc) => {
+              const isAct = activeGate === gc.k;
+              const b = gc.bucket;
+              return `
+                <button
+                  onclick="setSubDetailGate('${esc(tab.id)}', '${gc.k}')"
+                  class="p-2.5 rounded-xl border text-left transition-all ${isAct ? gc.act : gc.bg + " hover:opacity-90"}"
+                  title="Click to filter ${gc.title} for ${esc(subNo)}"
+                >
+                  <div class="flex items-center justify-between text-[10px] font-black uppercase">
+                    <span>${gc.title}</span>
+                    <span>${b.pct}%</span>
+                  </div>
+                  <div class="mt-1 font-mono text-base font-black">
+                    ${b.closed.toLocaleString()} <span class="text-[11px] font-bold opacity-75">/ ${b.total.toLocaleString()}</span>
+                  </div>
+                  <div class="text-[10px] opacity-80 mt-0.5">Open/Rem: ${b.open.toLocaleString()}</div>
+                </button>
+              `;
+            })
+            .join("")}
+        </div>
+
+        <!-- Sub-view Controls: Section + Status + Search -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div class="flex flex-wrap items-center gap-1.5">
+            ${[
+              { k: "ALL", lbl: `All (${d.plBase.length + d.csBase.length})` },
+              { k: "punchlist", lbl: `Punchlist (${d.plBase.length})` },
+              { k: "checksheet", lbl: `Checksheets (${d.csBase.length})` },
+            ]
+              .map(
+                (s) => `
+              <button
+                onclick="setSubDetailSection('${esc(tab.id)}', '${s.k}')"
+                class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeSec === s.k ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }"
+              >${s.lbl}</button>
+            `
+              )
+              .join("")}
+
+            <span class="mx-1 text-slate-300">|</span>
+
+            ${[
+              { k: "ALL", lbl: "All Status" },
+              { k: "Closed", lbl: "Closed / Completed" },
+              { k: "Open", lbl: "Open / Remaining" },
+            ]
+              .map(
+                (st) => `
+              <button
+                onclick="setDetailStatusFilter('${esc(tab.id)}', '${st.k}')"
+                class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeSt === st.k ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }"
+              >${st.lbl}</button>
+            `
+              )
+              .join("")}
+
+            ${
+              activeGate !== "ALL"
+                ? `<button onclick="setSubDetailGate('${esc(tab.id)}', '${activeGate}')" class="px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold"><i class="fas fa-filter mr-1"></i>${activeGate} ×</button>`
+                : ""
+            }
+          </div>
+
+          <div class="relative w-full sm:w-64">
+            <input
+              type="text"
+              value="${esc(tab.localFilters.search)}"
+              oninput="debounceDetailSearch('${esc(tab.id)}', this.value)"
+              placeholder="Search Tag, PL No, Defect, ITR..."
+              class="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-500"
+            />
+            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          </div>
+        </div>
+      </div>
+
+      ${
+        showPunch
+          ? `
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-3 bg-rose-50/70 border-b border-rose-100 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-clipboard-list text-rose-600"></i>
+              <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">Punchlist Items (${esc(subNo)})</h4>
+              <span id="detail-sub-pl-count-${esc(tab.id)}" class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[11px] font-bold">${d.plFiltered.length.toLocaleString()} items</span>
+            </div>
+            ${
+              d.plFiltered.length > tab.limitPl
+                ? `<button onclick="loadAllSubDetailSection('${esc(tab.id)}', 'punchlist')" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold"><i class="fas fa-list-check text-emerald-600 mr-1"></i>Load All (${d.plFiltered.length.toLocaleString()})</button>`
+                : ""
+            }
+          </div>
+          <div onscroll="handleSubDetailSectionScroll(this, '${esc(tab.id)}', 'punchlist')" class="overflow-x-auto overflow-y-auto max-h-[520px] bg-white">
+            <table class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
+              <thead>
+                <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
+                  <th class="py-2.5 px-3 text-center whitespace-nowrap">#</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">PunchList No</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">Raised No.</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">SubSystem</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">Tag No</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">Tag Description</th>
+                  <th class="py-2.5 px-3 text-center whitespace-nowrap">Cat</th>
+                  <th class="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">Discipline</th>
+                  <th class="py-2.5 px-4 whitespace-nowrap">Defect Description</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">Target Date</th>
+                  <th class="py-2.5 px-4 whitespace-nowrap">Corrective Action</th>
+                </tr>
+              </thead>
+              <tbody id="detail-sub-pl-tbody-${esc(tab.id)}">
+                ${visPl.length ? renderPlTableRows(visPl, 0) : `<tr><td colspan="12" class="py-8 text-center text-slate-400 text-xs">No matching punchlist items in this SubSystem</td></tr>`}
+              </tbody>
+            </table>
+            <div id="detail-sub-pl-status-${esc(tab.id)}" class="py-2 px-4 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+              ${
+                visPl.length >= d.plFiltered.length
+                  ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${d.plFiltered.length.toLocaleString()} items loaded</span>`
+                  : `<span class="text-blue-600 font-medium"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${visPl.length.toLocaleString()} of ${d.plFiltered.length.toLocaleString()} items. Scroll down for more...</span>`
+              }
+            </div>
+          </div>
+        </div>
+      `
+          : ""
+      }
+
+      ${
+        showCheck
+          ? `
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-3 bg-blue-50/70 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-tasks text-blue-600"></i>
+              <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">Checksheets — ITR-A &amp; ITR-B (${esc(subNo)})</h4>
+              <span id="detail-sub-cs-count-${esc(tab.id)}" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">${d.csFiltered.length.toLocaleString()} items</span>
+            </div>
+            ${
+              d.csFiltered.length > tab.limitCs
+                ? `<button onclick="loadAllSubDetailSection('${esc(tab.id)}', 'checksheet')" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold"><i class="fas fa-list-check text-emerald-600 mr-1"></i>Load All (${d.csFiltered.length.toLocaleString()})</button>`
+                : ""
+            }
+          </div>
+          <div onscroll="handleSubDetailSectionScroll(this, '${esc(tab.id)}', 'checksheet')" class="overflow-x-auto overflow-y-auto max-h-[520px] bg-white">
+            <table class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
+              <thead>
+                <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
+                  <th class="py-2.5 px-2 text-center whitespace-nowrap">No</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">SubSystem</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">Tag No</th>
+                  <th class="py-2.5 px-3 whitespace-nowrap">Tag Description</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">Discipline</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">CheckSheet Type</th>
+                  <th class="py-2.5 px-2 text-center whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">Complete Date</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">Plan Finish</th>
+                  <th class="py-2.5 px-2 text-center whitespace-nowrap">Norm</th>
+                  <th class="py-2.5 px-2 whitespace-nowrap">SubContractor</th>
+                  <th class="py-2.5 px-2 text-center whitespace-nowrap">Phase</th>
+                </tr>
+              </thead>
+              <tbody id="detail-sub-cs-tbody-${esc(tab.id)}">
+                ${visCs.length ? renderCsTableRows(visCs, 0) : `<tr><td colspan="12" class="py-8 text-center text-slate-400 text-xs">No matching checksheets in this SubSystem</td></tr>`}
+              </tbody>
+            </table>
+            <div id="detail-sub-cs-status-${esc(tab.id)}" class="py-2 px-4 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+              ${
+                visCs.length >= d.csFiltered.length
+                  ? `<span class="text-slate-400 font-medium"><i class="fas fa-check-circle text-emerald-500 mr-1.5"></i>All ${d.csFiltered.length.toLocaleString()} items loaded</span>`
+                  : `<span class="text-blue-600 font-medium"><i class="fas fa-arrow-down mr-1.5"></i>Loaded ${visCs.length.toLocaleString()} of ${d.csFiltered.length.toLocaleString()} items. Scroll down for more...</span>`
+              }
+            </div>
+          </div>
+        </div>
+      `
+          : ""
+      }
+    `;
+  }
+
   function renderDetailTab(tab, container) {
+    if (tab.source === "subsystem") {
+      renderSubSystemDetailTab(tab, container);
+      return;
+    }
     const isPl = tab.source === "punchlist";
     const c = tab.criteria;
     const baseStats = getDetailBaseStats(tab);
@@ -3553,6 +4358,25 @@
     } else {
       const dTab = state.detailTabs.find((t) => t.id === state.activeTab);
       if (!dTab) return;
+      if (dTab.source === "subsystem") {
+        const subNo = dTab.criteria.subSystem;
+        const d = getSubDetailCounts(dTab);
+        const sumSheet = [
+          { Gate: "ITR-A", Closed_Completed: d.itrA.closed, Total: d.itrA.total, Progress: `${d.itrA.pct}%` },
+          { Gate: "Punch Cat A", Closed_Completed: d.punchA.closed, Total: d.punchA.total, Progress: `${d.punchA.pct}%` },
+          { Gate: "Punch Cat B", Closed_Completed: d.punchB.closed, Total: d.punchB.total, Progress: `${d.punchB.pct}%` },
+          { Gate: "Punch Cat C", Closed_Completed: d.punchC.closed, Total: d.punchC.total, Progress: `${d.punchC.pct}%` },
+          { Gate: "ITR-B", Closed_Completed: d.itrB.closed, Total: d.itrB.total, Progress: `${d.itrB.pct}%` },
+          { Gate: "OVERALL", Closed_Completed: d.overallClosed, Total: d.overallTotal, Progress: `${d.overallPct}%` },
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sumSheet), "SubSystem Summary");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapPunchRowsForExport(d.plFiltered)), "Punchlist");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapCsRowsForExport(d.csFiltered)), "Checksheets");
+        const safeSub = subNo.replace(/[^a-zA-Z0-9_-]/g, "_");
+        XLSX.writeFile(wb, `SubSystem_${safeSub}_FullDetail_${todayStr}.xlsx`);
+        showToast(`Exported ${subNo} Full Detail (3 sheets) to Excel!`, "success");
+        return;
+      }
       const filtered = getDetailFilteredRows(dTab);
       const isPl = dTab.source === "punchlist";
       rowsToExport = isPl ? mapPunchRowsForExport(filtered) : mapCsRowsForExport(filtered);
@@ -3616,6 +4440,29 @@
     } else {
       const dTab = state.detailTabs.find((t) => t.id === state.activeTab);
       if (!dTab) return;
+      if (dTab.source === "subsystem") {
+        const subNo = dTab.criteria.subSystem;
+        const d = getSubDetailCounts(dTab);
+        doc.setFontSize(14);
+        doc.text(`CPP TOPSIDE - SubSystem Full Detail: ${subNo}`, 14, 15);
+        doc.setFontSize(9);
+        doc.text(`Export Date: ${new Date().toLocaleString()} | Overall: ${d.overallClosed}/${d.overallTotal} (${d.overallPct}%)`, 14, 21);
+        doc.autoTable({
+          startY: 25,
+          head: [["Gate", "Closed / Completed", "Open / Remaining", "Total", "Progress %"]],
+          body: [
+            ["ITR-A", d.itrA.closed, d.itrA.open, d.itrA.total, `${d.itrA.pct}%`],
+            ["Punch Cat A", d.punchA.closed, d.punchA.open, d.punchA.total, `${d.punchA.pct}%`],
+            ["Punch Cat B", d.punchB.closed, d.punchB.open, d.punchB.total, `${d.punchB.pct}%`],
+            ["Punch Cat C", d.punchC.closed, d.punchC.open, d.punchC.total, `${d.punchC.pct}%`],
+            ["ITR-B", d.itrB.closed, d.itrB.open, d.itrB.total, `${d.itrB.pct}%`],
+          ],
+          styles: { fontSize: 8 },
+        });
+        doc.save(`SubSystem_${subNo.replace(/[^a-zA-Z0-9_-]/g, "_")}_Report.pdf`);
+        showToast(`Exported ${subNo} Summary PDF report!`, "success");
+        return;
+      }
       isPl = dTab.source === "punchlist";
       filtered = getDetailFilteredRows(dTab);
       reportTitle = `CPP TOPSIDE Detail - ${dTab.title}`;
