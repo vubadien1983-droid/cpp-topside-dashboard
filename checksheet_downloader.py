@@ -285,15 +285,29 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--show", action="store_true", help="Hiện trình duyệt khi chạy")
     ap.add_argument("--retries", type=int, default=2, help="Số lần thử lại khi lỗi")
-    ap.add_argument("--once-per-day", action="store_true", help="Bỏ qua nếu hôm nay đã tải")
+    ap.add_argument("--once-per-day", action="store_true",
+                    help="Bỏ qua nếu đã tải trong phiên sáng (<12:25) hoặc phiên chiều (>=12:25)")
+    ap.add_argument("--force", action="store_true",
+                    help="Ép tải lại bất kể hôm nay đã có file hay chưa")
     args = ap.parse_args()
     cfg = load_config()
 
-    if args.once_per_day:
-        today = f"{cfg['file_prefix']}_{datetime.now():%Y-%m-%d}"
-        if any(cfg["download_dir"].glob(today + "*")):
-            log.info("Hôm nay đã có file %s* -> bỏ qua", today)
-            sys.exit(0)
+    if args.once_per_day and not args.force:
+        now = datetime.now()
+        today_prefix = f"{cfg['file_prefix']}_{now:%Y-%m-%d}"
+        today_files = list(cfg["download_dir"].glob(today_prefix + "*"))
+        midday_cutoff = now.replace(hour=12, minute=25, second=0, microsecond=0)
+        if now < midday_cutoff:
+            if today_files:
+                log.info("Phiên sáng (<12:25) hôm nay đã có file %s* -> bỏ qua", today_prefix)
+                sys.exit(0)
+        else:
+            afternoon_done = any(
+                datetime.fromtimestamp(f.stat().st_mtime) >= midday_cutoff for f in today_files
+            )
+            if afternoon_done:
+                log.info("Phiên trưa/chiều (>=12:25) hôm nay đã có file %s* -> bỏ qua", today_prefix)
+                sys.exit(0)
         if not wait_for_network():
             log.error("Không có mạng tới PMS -> dừng")
             sys.exit(1)

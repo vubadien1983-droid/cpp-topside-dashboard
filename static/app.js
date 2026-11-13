@@ -32,9 +32,12 @@
       system: "ALL",
       subSearch: "",
       subQuickFilter: "ALL", // 'ALL', 'OPEN_PUNCH_A', 'OPEN_PUNCH', 'REM_ITR_A', 'REM_ITR_B', 'DONE_100'
-      chartMetric: "ALL_GATES", // 'ALL_GATES', 'ITR-A', 'PUNCH-A', 'PUNCH-B', 'PUNCH-C', 'ITR-B'
-      lineGranularity: "week", // 'week', 'month', 'day'
-      lineMode: "pct", // 'pct' | 'count'
+      itrBarMetric: "ALL_ITR", // 'ALL_ITR', 'ITR-A', 'ITR-B'
+      punchBarMetric: "ALL_PUNCH", // 'ALL_PUNCH', 'PUNCH-A', 'PUNCH-B', 'PUNCH-C'
+      itrLineGran: "week", // 'week', 'month', 'day'
+      itrLineMode: "pct", // 'pct' | 'count'
+      punchLineGran: "week", // 'week', 'month', 'day'
+      punchLineMode: "pct", // 'pct' | 'count'
     },
     overviewCache: null,
     deviceMode: window.innerWidth < 768 ? "phone" : "laptop",
@@ -1006,43 +1009,70 @@
     renderTabContent();
   };
 
-  window.setOvChartMetric = function (metric) {
-    state.overviewFilters.chartMetric = metric;
-    const stats = getOverviewStats();
-    requestAnimationFrame(() => {
-      if (state.activeTab === "overview") renderOverviewCharts(stats);
+  window.setOvItrBarMetric = function (metric) {
+    state.overviewFilters.itrBarMetric = metric;
+    document.querySelectorAll("[data-ov-itr-bar]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-itr-bar") === metric;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-blue-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
     });
-    const pills = document.querySelectorAll("[data-ov-chart-btn]");
-    pills.forEach((btn) => {
-      const active = btn.getAttribute("data-ov-chart-btn") === metric;
+    renderItrDisciplineBarChart(getOverviewStats());
+  };
+
+  window.setOvPunchBarMetric = function (metric) {
+    state.overviewFilters.punchBarMetric = metric;
+    document.querySelectorAll("[data-ov-punch-bar]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-punch-bar") === metric;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-rose-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderPunchDisciplineBarChart(getOverviewStats());
+  };
+
+  window.setOvItrLineGran = function (gran) {
+    state.overviewFilters.itrLineGran = gran;
+    document.querySelectorAll("[data-ov-itr-gran]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-itr-gran") === gran;
       btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
         active ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
       }`;
     });
+    renderItrLineChart();
   };
 
-  window.setOvLineGranularity = function (gran) {
-    state.overviewFilters.lineGranularity = gran;
-    const gBtns = document.querySelectorAll("[data-ov-line-gran]");
-    gBtns.forEach((btn) => {
-      const active = btn.getAttribute("data-ov-line-gran") === gran;
-      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
-        active ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-      }`;
-    });
-    renderOverviewLineChart();
-  };
-
-  window.setOvLineMode = function (mode) {
-    state.overviewFilters.lineMode = mode;
-    const mBtns = document.querySelectorAll("[data-ov-line-mode]");
-    mBtns.forEach((btn) => {
-      const active = btn.getAttribute("data-ov-line-mode") === mode;
+  window.setOvItrLineMode = function (mode) {
+    state.overviewFilters.itrLineMode = mode;
+    document.querySelectorAll("[data-ov-itr-mode]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-itr-mode") === mode;
       btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
         active ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
       }`;
     });
-    renderOverviewLineChart();
+    renderItrLineChart();
+  };
+
+  window.setOvPunchLineGran = function (gran) {
+    state.overviewFilters.punchLineGran = gran;
+    document.querySelectorAll("[data-ov-punch-gran]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-punch-gran") === gran;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderPunchLineChart();
+  };
+
+  window.setOvPunchLineMode = function (mode) {
+    state.overviewFilters.punchLineMode = mode;
+    document.querySelectorAll("[data-ov-punch-mode]").forEach((btn) => {
+      const active = btn.getAttribute("data-ov-punch-mode") === mode;
+      btn.className = `px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+        active ? "bg-rose-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`;
+    });
+    renderPunchLineChart();
   };
 
   const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1072,9 +1102,8 @@
         label: `${parts.dStr} ${MONTHS_SHORT[parts.mm - 1]}`,
       };
     }
-    // Default: week (Monday start via pure UTC arithmetic)
     const utcMs = Date.UTC(parts.yyyy, parts.mm - 1, parts.dd);
-    const utcDay = new Date(utcMs).getUTCDay(); // 0=Sun..6=Sat
+    const utcDay = new Date(utcMs).getUTCDay();
     const diffToMon = (utcDay + 6) % 7;
     const monDate = new Date(utcMs - diffToMon * 86400000);
     const my = monDate.getUTCFullYear();
@@ -1086,20 +1115,17 @@
     };
   }
 
-  function computeProgressTimeline(sysFilter, granularity) {
+  function computeChecksheetTimeline(sysFilter, granularity) {
     const bucketMap = new Map();
     const ensureBucket = (key, label) => {
       let b = bucketMap.get(key);
       if (!b) {
-        b = { key, label, itrA: 0, itrB: 0, punchA: 0, punchB: 0, punchC: 0 };
+        b = { key, label, itrA: 0, itrB: 0 };
         bucketMap.set(key, b);
       }
       return b;
     };
-
-    let totItrA = 0, totItrB = 0, totPA = 0, totPB = 0, totPC = 0;
-
-    // 1. Checksheet Completion Dates
+    let totA = 0, totB = 0;
     const csRows = state.data.checksheet.rows;
     const csPool = state.data.checksheet.pool;
     for (let i = 0; i < csRows.length; i++) {
@@ -1109,21 +1135,49 @@
       const csType = (csPool[r[5]] || "").trim().toUpperCase();
       const isA = csType.endsWith("A");
       const isB = !isA && csType.endsWith("B");
-      if (isA) totItrA++;
-      else if (isB) totItrB++;
+      if (isA) totA++;
+      else if (isB) totB++;
       else continue;
 
       const compStr = csPool[r[6]] || "";
       if (!compStr) continue;
-      const parts = parseDdMmYyyyParts(compStr);
-      const bk = dateToBucket(parts, granularity);
+      const bk = dateToBucket(parseDdMmYyyyParts(compStr), granularity);
       if (!bk) continue;
       const obj = ensureBucket(bk.key, bk.label);
       if (isA) obj.itrA++;
       else obj.itrB++;
     }
 
-    // 2. Punchlist Closure Dates
+    const sortedAll = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    let cumA = 0, cumB = 0;
+    const fullPoints = sortedAll.map((b) => {
+      cumA += b.itrA;
+      cumB += b.itrB;
+      return {
+        label: b.label,
+        delta: { itrA: b.itrA, itrB: b.itrB },
+        cum: { itrA: cumA, itrB: cumB },
+        pct: {
+          itrA: totA > 0 ? Number(((cumA / totA) * 100).toFixed(1)) : null,
+          itrB: totB > 0 ? Number(((cumB / totB) * 100).toFixed(1)) : null,
+        },
+      };
+    });
+    const points = granularity === "day" && fullPoints.length > 45 ? fullPoints.slice(-45) : fullPoints;
+    return { points, totals: { itrA: totA, itrB: totB } };
+  }
+
+  function computePunchTimeline(sysFilter, granularity) {
+    const bucketMap = new Map();
+    const ensureBucket = (key, label) => {
+      let b = bucketMap.get(key);
+      if (!b) {
+        b = { key, label, punchA: 0, punchB: 0, punchC: 0 };
+        bucketMap.set(key, b);
+      }
+      return b;
+    };
+    let totA = 0, totB = 0, totC = 0;
     const plRows = state.data.punchlist.rows;
     const plPool = state.data.punchlist.pool;
     for (let i = 0; i < plRows.length; i++) {
@@ -1133,15 +1187,14 @@
       if (sysFilter !== "ALL" && sysNo !== sysFilter && inferSystemFromSub(subNo) !== sysFilter) continue;
       const cat = (r[8] || "B").toUpperCase();
       const status = plPool[r[9]] || "Open";
-      if (cat === "A") totPA++;
-      else if (cat === "B") totPB++;
-      else if (cat === "C") totPC++;
+      if (cat === "A") totA++;
+      else if (cat === "B") totB++;
+      else if (cat === "C") totC++;
       else continue;
 
       if (status !== "Closed") continue;
       const closedStr = plPool[r[11]] || "";
-      const parts = parseDdMmYyyyParts(closedStr);
-      const bk = dateToBucket(parts, granularity);
+      const bk = dateToBucket(parseDdMmYyyyParts(closedStr), granularity);
       if (!bk) continue;
       const obj = ensureBucket(bk.key, bk.label);
       if (cat === "A") obj.punchA++;
@@ -1150,74 +1203,141 @@
     }
 
     const sortedAll = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-    let cumItrA = 0, cumItrB = 0, cumPA = 0, cumPB = 0, cumPC = 0;
+    let cumA = 0, cumB = 0, cumC = 0;
     const fullPoints = sortedAll.map((b) => {
-      cumItrA += b.itrA;
-      cumItrB += b.itrB;
-      cumPA += b.punchA;
-      cumPB += b.punchB;
-      cumPC += b.punchC;
+      cumA += b.punchA;
+      cumB += b.punchB;
+      cumC += b.punchC;
       return {
-        key: b.key,
         label: b.label,
-        delta: { itrA: b.itrA, itrB: b.itrB, punchA: b.punchA, punchB: b.punchB, punchC: b.punchC },
-        cum: { itrA: cumItrA, itrB: cumItrB, punchA: cumPA, punchB: cumPB, punchC: cumPC },
+        delta: { punchA: b.punchA, punchB: b.punchB, punchC: b.punchC },
+        cum: { punchA: cumA, punchB: cumB, punchC: cumC },
         pct: {
-          itrA: totItrA > 0 ? Number(((cumItrA / totItrA) * 100).toFixed(1)) : null,
-          itrB: totItrB > 0 ? Number(((cumItrB / totItrB) * 100).toFixed(1)) : null,
-          punchA: totPA > 0 ? Number(((cumPA / totPA) * 100).toFixed(1)) : null,
-          punchB: totPB > 0 ? Number(((cumPB / totPB) * 100).toFixed(1)) : null,
-          punchC: totPC > 0 ? Number(((cumPC / totPC) * 100).toFixed(1)) : null,
+          punchA: totA > 0 ? Number(((cumA / totA) * 100).toFixed(1)) : null,
+          punchB: totB > 0 ? Number(((cumB / totB) * 100).toFixed(1)) : null,
+          punchC: totC > 0 ? Number(((cumC / totC) * 100).toFixed(1)) : null,
         },
       };
     });
-
     const points = granularity === "day" && fullPoints.length > 45 ? fullPoints.slice(-45) : fullPoints;
-    return {
-      points,
-      totals: { itrA: totItrA, itrB: totItrB, punchA: totPA, punchB: totPB, punchC: totPC },
-    };
+    return { points, totals: { punchA: totA, punchB: totB, punchC: totC } };
   }
 
-  function renderOverviewLineChart() {
+  function renderItrDisciplineBarChart(stats) {
     if (!window.Chart) return;
-    const canvas = document.getElementById("chart-ov-progress-line");
+    const canvas = document.getElementById("chart-ov-itr-disc");
     if (!canvas) return;
+    if (state.charts.ovItrDisc) state.charts.ovItrDisc.destroy();
 
-    if (state.charts.ovLine) state.charts.ovLine.destroy();
     const sys = state.overviewFilters.system || "ALL";
-    const granularity = state.overviewFilters.lineGranularity || "week";
-    const mode = state.overviewFilters.lineMode || "pct";
+    const metric = state.overviewFilters.itrBarMetric || "ALL_ITR";
+    const discList = stats.byDiscipline.filter((d) => (d.itrA.total + d.itrB.total) > 0);
+    const labels = discList.map((d) => d.discipline);
 
-    const tl = computeProgressTimeline(sys, granularity);
+    const getBucket = (d) => {
+      if (metric === "ITR-A") return d.itrA;
+      if (metric === "ITR-B") return d.itrB;
+      const total = d.itrA.total + d.itrB.total;
+      const closed = d.itrA.closed + d.itrB.closed;
+      return {
+        closed,
+        open: Math.max(0, total - closed),
+        total,
+        pct: total > 0 ? Number(((closed / total) * 100).toFixed(1)) : 0,
+      };
+    };
+
+    state.charts.ovItrDisc = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Completed (Signed-off)",
+            data: discList.map((d) => getBucket(d).closed),
+            backgroundColor: "#2563EB",
+            borderRadius: 4,
+          },
+          {
+            label: "Remaining (Pending)",
+            data: discList.map((d) => getBucket(d).open),
+            backgroundColor: "#CBD5E1",
+            borderRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: (evt, elements) => {
+          if (!elements || !elements.length) return;
+          const dObj = discList[elements[0].index];
+          if (!dObj) return;
+          const isOpen = elements[0].datasetIndex === 1;
+          const itrGrp = metric === "ALL_ITR" ? "ALL" : metric;
+          openDetailTab({
+            source: "checksheet",
+            system: sys,
+            discipline: dObj.discipline,
+            itrGroup: itrGrp,
+            status: isOpen ? "Remaining" : "ALL",
+            title: `${dObj.discipline} • ${itrGrp === "ALL" ? "All ITRs" : itrGrp}${isOpen ? " (Remaining)" : ""}`,
+          });
+        },
+        plugins: {
+          legend: { position: "top", labels: { boxWidth: 12, font: { size: 11, weight: "bold" } } },
+          tooltip: {
+            callbacks: {
+              afterBody: (items) => {
+                if (!items.length) return "";
+                const b = getBucket(discList[items[0].dataIndex]);
+                return `Completion: ${b.closed.toLocaleString()} / ${b.total.toLocaleString()} (${b.pct}%)`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { stacked: true, ticks: { font: { size: 10 } } },
+          y: { stacked: true, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  function renderItrLineChart() {
+    if (!window.Chart) return;
+    const canvas = document.getElementById("chart-ov-itr-line");
+    if (!canvas) return;
+    if (state.charts.ovItrLine) state.charts.ovItrLine.destroy();
+
+    const sys = state.overviewFilters.system || "ALL";
+    const gran = state.overviewFilters.itrLineGran || "week";
+    const mode = state.overviewFilters.itrLineMode || "pct";
+    const tl = computeChecksheetTimeline(sys, gran);
     const pts = tl.points;
-    const labels = pts.map((p) => p.label);
 
-    const seriesDefs = [
-      { key: "itrA", label: "ITR-A", color: "#2563EB", dash: [] },
-      { key: "itrB", label: "ITR-B", color: "#4F46E5", dash: [] },
-      { key: "punchA", label: "Punch Cat A", color: "#E11D48", dash: [5, 3] },
-      { key: "punchB", label: "Punch Cat B", color: "#D97706", dash: [5, 3] },
-      { key: "punchC", label: "Punch Cat C", color: "#0D9488", dash: [2, 2] },
+    const defs = [
+      { key: "itrA", label: "ITR-A (Pre-Comm)", color: "#2563EB" },
+      { key: "itrB", label: "ITR-B (Comm)", color: "#7C3AED" },
     ];
 
-    const datasets = seriesDefs.map((s) => ({
-      label: s.label,
-      data: pts.map((p) => (mode === "pct" ? p.pct[s.key] : p.cum[s.key])),
-      borderColor: s.color,
-      backgroundColor: s.color + "18",
-      borderWidth: 2.4,
-      borderDash: s.dash,
-      tension: 0.25,
-      spanGaps: true,
-      pointRadius: pts.length > 35 ? 1.8 : 3,
-      pointHoverRadius: 5,
-      fill: false,
-    }));
-
-    state.charts.ovLine = new Chart(canvas, {
+    state.charts.ovItrLine = new Chart(canvas, {
       type: "line",
-      data: { labels, datasets },
+      data: {
+        labels: pts.map((p) => p.label),
+        datasets: defs.map((s) => ({
+          label: s.label,
+          data: pts.map((p) => (mode === "pct" ? p.pct[s.key] : p.cum[s.key])),
+          borderColor: s.color,
+          backgroundColor: s.color + "1A",
+          borderWidth: 2.8,
+          tension: 0.25,
+          spanGaps: true,
+          pointRadius: pts.length > 35 ? 2 : 3.5,
+          pointHoverRadius: 5,
+          fill: true,
+        })),
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -1227,203 +1347,426 @@
           tooltip: {
             callbacks: {
               label: (ctx) => {
-                const s = seriesDefs[ctx.datasetIndex];
+                const s = defs[ctx.datasetIndex];
                 const pt = pts[ctx.dataIndex];
                 if (!pt || !s) return "";
-                const cum = pt.cum[s.key];
                 const tot = tl.totals[s.key];
-                const pct = pt.pct[s.key];
+                if (!tot) return `${s.label}: No items`;
+                const cum = pt.cum[s.key];
                 const delta = pt.delta[s.key];
-                if (tot === 0) return `${s.label}: No items in scope`;
-                const deltaStr = delta > 0 ? ` (+${delta.toLocaleString()} in period)` : "";
-                return `${s.label}: ${pct}% (${cum.toLocaleString()}/${tot.toLocaleString()})${deltaStr}`;
+                return `${s.label}: ${pt.pct[s.key]}% (${cum.toLocaleString()}/${tot.toLocaleString()})${delta > 0 ? ` (+${delta.toLocaleString()})` : ""}`;
               },
             },
           },
         },
         scales: {
-          x: {
-            grid: { display: false },
-            ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 18, font: { size: 10 } },
-          },
+          x: { grid: { display: false }, ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 10 } } },
           y: {
             beginAtZero: true,
             max: mode === "pct" ? 100 : undefined,
-            ticks: {
-              font: { size: 10 },
-              callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()),
-            },
+            ticks: { font: { size: 10 }, callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()) },
           },
         },
       },
     });
   }
 
-  function renderOverviewCharts(stats) {
+  function renderPunchDisciplineBarChart(stats) {
     if (!window.Chart) return;
+    const canvas = document.getElementById("chart-ov-punch-disc");
+    if (!canvas) return;
+    if (state.charts.ovPunchDisc) state.charts.ovPunchDisc.destroy();
+
     const sys = state.overviewFilters.system || "ALL";
-    const metric = state.overviewFilters.chartMetric || "ALL_GATES";
+    const metric = state.overviewFilters.punchBarMetric || "ALL_PUNCH";
+    const discList = stats.byDiscipline.filter((d) => (d.punchA.total + d.punchB.total + d.punchC.total) > 0);
+    const labels = discList.map((d) => d.discipline);
 
-    // Chart 1: Discipline Stacked Progress
-    const ctxDisc = document.getElementById("chart-ov-disciplines");
-    if (ctxDisc) {
-      if (state.charts.ovDisc) state.charts.ovDisc.destroy();
-      const discList = stats.byDiscipline;
-      const labels = discList.map((d) => d.discipline);
-
-      const getBucketForMetric = (d) => {
-        if (metric === "ITR-A") return d.itrA;
-        if (metric === "ITR-B") return d.itrB;
-        if (metric === "PUNCH-A") return d.punchA;
-        if (metric === "PUNCH-B") return d.punchB;
-        if (metric === "PUNCH-C") return d.punchC;
-        return {
-          closed: d.overallClosed,
-          open: Math.max(0, d.overallTotal - d.overallClosed),
-          total: d.overallTotal,
-          pct: d.overallPct,
-        };
+    const getBucket = (d) => {
+      if (metric === "PUNCH-A") return d.punchA;
+      if (metric === "PUNCH-B") return d.punchB;
+      if (metric === "PUNCH-C") return d.punchC;
+      const total = d.punchA.total + d.punchB.total + d.punchC.total;
+      const closed = d.punchA.closed + d.punchB.closed + d.punchC.closed;
+      return {
+        closed,
+        open: Math.max(0, total - closed),
+        total,
+        pct: total > 0 ? Number(((closed / total) * 100).toFixed(1)) : 0,
       };
+    };
 
-      const closedData = discList.map((d) => getBucketForMetric(d).closed);
-      const openData = discList.map((d) => getBucketForMetric(d).open);
-
-      state.charts.ovDisc = new Chart(ctxDisc, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Closed / Completed",
-              data: closedData,
-              backgroundColor: "#10B981",
-              borderRadius: 4,
-            },
-            {
-              label: "Open / Remaining",
-              data: openData,
-              backgroundColor: "#F43F5E",
-              borderRadius: 4,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          onClick: (evt, elements) => {
-            if (elements && elements.length > 0) {
-              const idx = elements[0].index;
-              const dObj = discList[idx];
-              if (!dObj) return;
-              const dsIdx = elements[0].datasetIndex;
-              const isClickOpen = dsIdx === 1;
-              if (metric === "ITR-A" || metric === "ITR-B") {
-                openDetailTab({
-                  source: "checksheet",
-                  system: sys,
-                  discipline: dObj.discipline,
-                  itrGroup: metric,
-                  status: isClickOpen ? "Remaining" : "ALL",
-                  title: `${dObj.discipline} • ${metric}${isClickOpen ? " (Remaining)" : ""}`,
-                });
-              } else if (metric.startsWith("PUNCH-")) {
-                const cat = metric.split("-")[1];
-                openDetailTab({
-                  source: "punchlist",
-                  system: sys,
-                  discipline: dObj.discipline,
-                  category: cat,
-                  status: isClickOpen ? "Open" : "ALL",
-                  title: `${dObj.discipline} • Punch Cat ${cat}${isClickOpen ? " (Open)" : ""}`,
-                });
-              } else {
-                openDetailTab({
-                  source: "checksheet",
-                  system: sys,
-                  discipline: dObj.discipline,
-                  itrGroup: "ALL",
-                  status: isClickOpen ? "Remaining" : "ALL",
-                  title: `${dObj.discipline} • Checksheets`,
-                });
-              }
-            }
+    state.charts.ovPunchDisc = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Closed",
+            data: discList.map((d) => getBucket(d).closed),
+            backgroundColor: "#10B981",
+            borderRadius: 4,
           },
-          plugins: {
-            legend: { position: "top", labels: { boxWidth: 12, font: { size: 11 } } },
-            tooltip: {
-              callbacks: {
-                afterBody: (items) => {
-                  if (!items.length) return "";
-                  const dObj = discList[items[0].dataIndex];
-                  const b = getBucketForMetric(dObj);
-                  return `Completion: ${b.closed.toLocaleString()} / ${b.total.toLocaleString()} (${b.pct}%)`;
-                },
+          {
+            label: "Open",
+            data: discList.map((d) => getBucket(d).open),
+            backgroundColor: "#E11D48",
+            borderRadius: 4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        onClick: (evt, elements) => {
+          if (!elements || !elements.length) return;
+          const dObj = discList[elements[0].index];
+          if (!dObj) return;
+          const isOpen = elements[0].datasetIndex === 1;
+          const cat = metric === "ALL_PUNCH" ? "ALL" : metric.split("-")[1];
+          openDetailTab({
+            source: "punchlist",
+            system: sys,
+            discipline: dObj.discipline,
+            category: cat,
+            status: isOpen ? "Open" : "ALL",
+            title: `${dObj.discipline} • ${cat === "ALL" ? "All Punch" : "Punch Cat " + cat}${isOpen ? " (Open)" : ""}`,
+          });
+        },
+        plugins: {
+          legend: { position: "top", labels: { boxWidth: 12, font: { size: 11, weight: "bold" } } },
+          tooltip: {
+            callbacks: {
+              afterBody: (items) => {
+                if (!items.length) return "";
+                const b = getBucket(discList[items[0].dataIndex]);
+                return `Closed Rate: ${b.closed.toLocaleString()} / ${b.total.toLocaleString()} (${b.pct}%)`;
               },
             },
           },
-          scales: {
-            x: { stacked: true, ticks: { font: { size: 10 } } },
-            y: { stacked: true, beginAtZero: true },
-          },
         },
-      });
-    }
-
-    // Chart 2: 5-Gate Completion % Comparison
-    const ctxGates = document.getElementById("chart-ov-gates");
-    if (ctxGates) {
-      if (state.charts.ovGates) state.charts.ovGates.destroy();
-      const g = stats.global;
-      const gateSpecs = [
-        { label: "ITR-A", bucket: g.itrA, color: "#2563EB", crit: { source: "checksheet", system: sys, itrGroup: "ITR-A", status: "ALL", title: "ITR-A • All Checksheets" } },
-        { label: "Punch Cat A", bucket: g.punchA, color: "#E11D48", crit: { source: "punchlist", system: sys, category: "A", status: "ALL", title: "Punch Cat A • All" } },
-        { label: "Punch Cat B", bucket: g.punchB, color: "#D97706", crit: { source: "punchlist", system: sys, category: "B", status: "ALL", title: "Punch Cat B • All" } },
-        { label: "Punch Cat C", bucket: g.punchC, color: "#0284C7", crit: { source: "punchlist", system: sys, category: "C", status: "ALL", title: "Punch Cat C • All" } },
-        { label: "ITR-B", bucket: g.itrB, color: "#4F46E5", crit: { source: "checksheet", system: sys, itrGroup: "ITR-B", status: "ALL", title: "ITR-B • All Checksheets" } },
-      ];
-
-      state.charts.ovGates = new Chart(ctxGates, {
-        type: "bar",
-        data: {
-          labels: gateSpecs.map((x) => `${x.label} (${x.bucket.pct}%)`),
-          datasets: [
-            {
-              label: "% Closed / Completed",
-              data: gateSpecs.map((x) => x.bucket.pct),
-              backgroundColor: gateSpecs.map((x) => x.color),
-              borderRadius: 6,
-            },
-          ],
+        scales: {
+          x: { stacked: true, ticks: { font: { size: 10 } } },
+          y: { stacked: true, beginAtZero: true },
         },
-        options: {
-          indexAxis: "y",
-          responsive: true,
-          maintainAspectRatio: false,
-          onClick: (evt, elements) => {
-            if (elements && elements.length > 0) {
-              const spec = gateSpecs[elements[0].index];
-              if (spec) openDetailTab(spec.crit);
-            }
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => {
-                  const spec = gateSpecs[ctx.dataIndex];
-                  const b = spec.bucket;
-                  return `${b.closed.toLocaleString()} / ${b.total.toLocaleString()} (${b.pct}%) — Open: ${b.open.toLocaleString()}`;
-                },
+      },
+    });
+  }
+
+  function renderPunchLineChart() {
+    if (!window.Chart) return;
+    const canvas = document.getElementById("chart-ov-punch-line");
+    if (!canvas) return;
+    if (state.charts.ovPunchLine) state.charts.ovPunchLine.destroy();
+
+    const sys = state.overviewFilters.system || "ALL";
+    const gran = state.overviewFilters.punchLineGran || "week";
+    const mode = state.overviewFilters.punchLineMode || "pct";
+    const tl = computePunchTimeline(sys, gran);
+    const pts = tl.points;
+
+    const defs = [
+      { key: "punchA", label: "Punch Cat A", color: "#E11D48" },
+      { key: "punchB", label: "Punch Cat B", color: "#D97706" },
+      { key: "punchC", label: "Punch Cat C", color: "#0284C7" },
+    ];
+
+    state.charts.ovPunchLine = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: pts.map((p) => p.label),
+        datasets: defs.map((s) => ({
+          label: s.label,
+          data: pts.map((p) => (mode === "pct" ? p.pct[s.key] : p.cum[s.key])),
+          borderColor: s.color,
+          backgroundColor: s.color + "14",
+          borderWidth: 2.6,
+          tension: 0.25,
+          spanGaps: true,
+          pointRadius: pts.length > 35 ? 2 : 3.5,
+          pointHoverRadius: 5,
+          fill: false,
+        })),
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { position: "top", labels: { boxWidth: 14, usePointStyle: true, font: { size: 11, weight: "bold" } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const s = defs[ctx.datasetIndex];
+                const pt = pts[ctx.dataIndex];
+                if (!pt || !s) return "";
+                const tot = tl.totals[s.key];
+                if (!tot) return `${s.label}: No items`;
+                const cum = pt.cum[s.key];
+                const delta = pt.delta[s.key];
+                return `${s.label}: ${pt.pct[s.key]}% (${cum.toLocaleString()}/${tot.toLocaleString()})${delta > 0 ? ` (+${delta.toLocaleString()})` : ""}`;
               },
             },
           },
-          scales: {
-            x: { min: 0, max: 100, ticks: { callback: (v) => v + "%", font: { size: 10 } } },
-            y: { ticks: { font: { size: 11, weight: "bold" } } },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxRotation: 40, autoSkip: true, maxTicksLimit: 14, font: { size: 10 } } },
+          y: {
+            beginAtZero: true,
+            max: mode === "pct" ? 100 : undefined,
+            ticks: { font: { size: 10 }, callback: (v) => (mode === "pct" ? v + "%" : Number(v).toLocaleString()) },
           },
         },
-      });
+      },
+    });
+  }
+
+  function renderAllOverviewCharts(stats) {
+    renderItrDisciplineBarChart(stats);
+    renderItrLineChart();
+    renderPunchDisciplineBarChart(stats);
+    renderPunchLineChart();
+  }
+
+  // =========================================================================
+  // SHARED PER-DISCIPLINE SUMMARY STRIP FOR ALL TABS & OPENED DETAIL TABS
+  // Summarizes Closed/Completed vs Open/Remaining for ITR-A/B & Punch A/B/C
+  // Hidden automatically if user selected a single Discipline!
+  // =========================================================================
+  function computeDisciplineBreakdown(opts = {}) {
+    const sys = opts.system || "ALL";
+    const sub = opts.subSystem || "ALL";
+    const subSet = opts.subSet || null; // optional Set of SubSystems matching filtered records
+    const plSource = opts.plRows || state.data.punchlist.rows;
+    const csSource = opts.csRows || state.data.checksheet.rows;
+    const plPool = state.data.punchlist.pool;
+    const csPool = state.data.checksheet.pool;
+
+    const map = new Map();
+    const getRow = (disc) => {
+      const k = disc || "Unassigned";
+      let o = map.get(k);
+      if (!o) {
+        o = {
+          discipline: k,
+          itrA: makeGateBucket(),
+          itrB: makeGateBucket(),
+          punchA: makeGateBucket(),
+          punchB: makeGateBucket(),
+          punchC: makeGateBucket(),
+        };
+        map.set(k, o);
+      }
+      return o;
+    };
+
+    for (let i = 0; i < plSource.length; i++) {
+      const r = plSource[i];
+      const sysNo = plPool[r[0]] || "";
+      const subNo = plPool[r[1]] || "";
+      if (!opts.plRows) {
+        if (sys !== "ALL" && sysNo !== sys && inferSystemFromSub(subNo) !== sys) continue;
+        if (sub !== "ALL" && subNo !== sub) continue;
+        if (subSet && !subSet.has(subNo)) continue;
+      }
+      const disc = plPool[r[15]] || "Unassigned";
+      const cat = (r[8] || "B").toUpperCase();
+      const closed = (plPool[r[9]] || "Open") === "Closed";
+      const d = getRow(disc);
+      const b = cat === "A" ? d.punchA : cat === "C" ? d.punchC : d.punchB;
+      b.total++;
+      if (closed) b.closed++;
     }
+
+    for (let i = 0; i < csSource.length; i++) {
+      const r = csSource[i];
+      const subNo = csPool[r[1]] || "";
+      if (!opts.csRows) {
+        if (sys !== "ALL" && inferSystemFromSub(subNo) !== sys) continue;
+        if (sub !== "ALL" && subNo !== sub) continue;
+        if (subSet && !subSet.has(subNo)) continue;
+      }
+      const disc = csPool[r[4]] || "Unassigned";
+      const csType = (csPool[r[5]] || "").trim().toUpperCase();
+      const comp = Boolean(csPool[r[6]]);
+      const d = getRow(disc);
+      if (csType.endsWith("A")) {
+        d.itrA.total++;
+        if (comp) d.itrA.closed++;
+      } else if (csType.endsWith("B")) {
+        d.itrB.total++;
+        if (comp) d.itrB.closed++;
+      }
+    }
+
+    const list = Array.from(map.values()).map((row) => finalizeSummaryRow(row));
+    list.sort((a, b) => b.overallTotal - a.overallTotal);
+    return list;
+  }
+
+  function renderCompactGateCell(b) {
+    if (!b || b.total === 0) {
+      return `<td class="py-1.5 px-2 text-center text-slate-300 font-mono text-[11px]">-</td>`;
+    }
+    return `
+      <td class="py-1.5 px-2 text-center whitespace-nowrap">
+        <div class="inline-flex items-center gap-1 font-mono text-[11px]">
+          <span class="font-extrabold text-emerald-700" title="Closed / Completed">${b.closed.toLocaleString()}</span>
+          <span class="text-slate-300">/</span>
+          <span class="font-bold ${b.open > 0 ? "text-rose-600" : "text-slate-400"}" title="Open / Remaining">${b.open.toLocaleString()}</span>
+        </div>
+        <div class="text-[10px] font-bold text-slate-500">${b.pct}%</div>
+      </td>
+    `;
+  }
+
+  function renderDisciplineSummaryStrip(opts = {}) {
+    if (opts.selectedDiscipline && opts.selectedDiscipline !== "ALL") return "";
+    const list = computeDisciplineBreakdown(opts);
+    if (list.length === 0) return "";
+
+    const tot = {
+      itrA: makeGateBucket(),
+      punchA: makeGateBucket(),
+      punchB: makeGateBucket(),
+      punchC: makeGateBucket(),
+      itrB: makeGateBucket(),
+    };
+    list.forEach((d) => {
+      ["itrA", "punchA", "punchB", "punchC", "itrB"].forEach((k) => {
+        tot[k].total += d[k].total;
+        tot[k].closed += d[k].closed;
+      });
+    });
+    ["itrA", "punchA", "punchB", "punchC", "itrB"].forEach((k) => finalizeGateBucket(tot[k]));
+
+    return `
+      <details open class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <summary class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none list-none">
+          <div class="flex items-center gap-2 flex-wrap">
+            <i class="fas fa-layer-group text-indigo-600 text-xs"></i>
+            <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+              Discipline Closure Summary (ITR-A/B &amp; Punch Cat A/B/C)
+            </span>
+            <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">${list.length} Disciplines</span>
+            ${opts.scopeLabel ? `<span class="text-[11px] text-slate-500 font-medium">(${esc(opts.scopeLabel)})</span>` : ""}
+          </div>
+          <div class="flex items-center gap-2 text-[10px] text-slate-500">
+            <span><strong class="text-emerald-700">Closed</strong> / <strong class="text-rose-600">Open</strong></span>
+            <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">Toggle</span>
+          </div>
+        </summary>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left sqcl-grid-table" style="table-layout: auto; width: 100%;">
+            <thead>
+              <tr class="bg-slate-800 text-white text-[10px] uppercase font-bold tracking-wider">
+                <th class="py-2 px-3 whitespace-nowrap">Discipline</th>
+                <th class="py-2 px-2 text-center whitespace-nowrap">ITR-A (Comp / Rem)</th>
+                <th class="py-2 px-2 text-center whitespace-nowrap">Punch A (Cls / Opn)</th>
+                <th class="py-2 px-2 text-center whitespace-nowrap">Punch B (Cls / Opn)</th>
+                <th class="py-2 px-2 text-center whitespace-nowrap">Punch C (Cls / Opn)</th>
+                <th class="py-2 px-2 text-center whitespace-nowrap">ITR-B (Comp / Rem)</th>
+                <th class="py-2 px-2 text-center whitespace-nowrap">Overall</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list
+                .map((d) => {
+                  const theme = DISC_THEMES[d.discipline] || DISC_THEMES.Unassigned;
+                  return `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs">
+                      <td class="py-1.5 px-3 font-bold text-slate-800 whitespace-nowrap">
+                        <span class="inline-block w-2 h-2 rounded-full mr-1.5" style="background:${theme.bar}"></span>
+                        ${esc(d.discipline)}
+                      </td>
+                      ${renderCompactGateCell(d.itrA)}
+                      ${renderCompactGateCell(d.punchA)}
+                      ${renderCompactGateCell(d.punchB)}
+                      ${renderCompactGateCell(d.punchC)}
+                      ${renderCompactGateCell(d.itrB)}
+                      <td class="py-1.5 px-2 text-center whitespace-nowrap font-mono text-[11px] font-black text-slate-800">
+                        ${d.overallPct}% <span class="text-[10px] font-normal text-slate-400">(${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()})</span>
+                      </td>
+                    </tr>
+                  `;
+                })
+                .join("")}
+            </tbody>
+            <tfoot>
+              <tr class="bg-slate-100 border-t border-slate-300 text-xs font-bold">
+                <td class="py-1.5 px-3 text-slate-900 font-black uppercase">TOTAL</td>
+                ${renderCompactGateCell(tot.itrA)}
+                ${renderCompactGateCell(tot.punchA)}
+                ${renderCompactGateCell(tot.punchB)}
+                ${renderCompactGateCell(tot.punchC)}
+                ${renderCompactGateCell(tot.itrB)}
+                <td class="py-1.5 px-2 text-center whitespace-nowrap font-mono text-[11px] font-black text-emerald-700">
+                  ${
+                    (() => {
+                      const gt = tot.itrA.total + tot.punchA.total + tot.punchB.total + tot.punchC.total + tot.itrB.total;
+                      const gc = tot.itrA.closed + tot.punchA.closed + tot.punchB.closed + tot.punchC.closed + tot.itrB.closed;
+                      const gp = gt > 0 ? ((gc / gt) * 100).toFixed(1) : "0.0";
+                      return `${gp}% <span class="text-[10px] font-normal text-slate-500">(${gc.toLocaleString()}/${gt.toLocaleString()})</span>`;
+                    })()
+                  }
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </details>
+    `;
+  }
+
+  function getFilteredSubsetSet(rows, pool, subIdx) {
+    const s = new Set();
+    for (let i = 0; i < rows.length; i++) {
+      const sub = pool[rows[i][subIdx]];
+      if (sub) s.add(sub);
+    }
+    return s;
+  }
+
+  function buildPunchlistTabDisciplineSummary(filteredPl) {
+    const f = state.filters.punchlist;
+    if (f.discipline && f.discipline !== "ALL") return "";
+    const isPlFiltered = filteredPl.length !== state.data.punchlist.rows.length;
+    const subSet = f.subSystem === "ALL" && isPlFiltered
+      ? getFilteredSubsetSet(filteredPl, state.data.punchlist.pool, 1)
+      : null;
+    const scopeLabel = f.subSystem !== "ALL"
+      ? `SubSystem: ${f.subSystem}`
+      : isPlFiltered
+      ? `Filtered Scope (${subSet.size} SubSystems)`
+      : "All Disciplines & SubSystems";
+    return renderDisciplineSummaryStrip({
+      selectedDiscipline: f.discipline,
+      subSystem: f.subSystem,
+      plRows: filteredPl,
+      subSet,
+      scopeLabel,
+    });
+  }
+
+  function buildChecksheetTabDisciplineSummary(filteredCs) {
+    const f = state.filters.checksheet;
+    if (f.discipline && f.discipline !== "ALL") return "";
+    const isCsFiltered = filteredCs.length !== state.data.checksheet.rows.length;
+    const subSet = f.subSystem === "ALL" && isCsFiltered
+      ? getFilteredSubsetSet(filteredCs, state.data.checksheet.pool, 1)
+      : null;
+    const scopeLabel = f.subSystem !== "ALL"
+      ? `SubSystem: ${f.subSystem}`
+      : isCsFiltered
+      ? `Filtered Scope (${subSet.size} SubSystems)`
+      : "All Disciplines & SubSystems";
+    return renderDisciplineSummaryStrip({
+      selectedDiscipline: f.discipline,
+      subSystem: f.subSystem,
+      csRows: filteredCs,
+      subSet,
+      scopeLabel,
+    });
   }
 
   function renderOverviewTab(container) {
@@ -1617,123 +1960,7 @@
           .join("")}
       </div>
 
-      <!-- 2. Interactive Progress Charts -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Chart 1: Progress by Discipline -->
-        <div class="lg:col-span-2 min-w-0 overflow-hidden bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-            <div>
-              <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                <i class="fas fa-chart-bar text-emerald-600"></i>
-                Completion & Closure Progress by Discipline
-              </h3>
-              <p class="text-[11px] text-slate-500">Click any bar to inspect records for that Discipline in a Detail Tab</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-1">
-              ${[
-                { k: "ALL_GATES", lbl: "All Gates" },
-                { k: "ITR-A", lbl: "ITR-A" },
-                { k: "PUNCH-A", lbl: "Punch A" },
-                { k: "PUNCH-B", lbl: "Punch B" },
-                { k: "PUNCH-C", lbl: "Punch C" },
-                { k: "ITR-B", lbl: "ITR-B" },
-              ]
-                .map(
-                  (m) => `
-                <button
-                  data-ov-chart-btn="${m.k}"
-                  onclick="setOvChartMetric('${m.k}')"
-                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                    state.overviewFilters.chartMetric === m.k
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }"
-                >${m.lbl}</button>
-              `
-                )
-                .join("")}
-            </div>
-          </div>
-          <div class="h-64 sm:h-72 mt-3 relative w-full" style="height:288px;">
-            <canvas id="chart-ov-disciplines" class="w-full h-full"></canvas>
-          </div>
-        </div>
-
-        <!-- Chart 2: 5-Gate Completion % Comparison -->
-        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-          <div class="pb-3 border-b border-slate-100">
-            <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-              <i class="fas fa-percent text-blue-600"></i>
-              Gate Completion Rate (%)
-            </h3>
-            <p class="text-[11px] text-slate-500">Click any gate bar to open all items in a Detail Tab</p>
-          </div>
-          <div class="h-64 sm:h-72 mt-3 relative w-full" style="height:288px;">
-            <canvas id="chart-ov-gates" class="w-full h-full"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2B. Completion Progress Trend Line Chart (ITR-A/B & Punch Cat A/B/C) -->
-      <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-          <div>
-            <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-              <i class="fas fa-chart-line text-indigo-600"></i>
-              Completion Progress Trend — ITR-A / ITR-B &amp; Punch List (Cat A / B / C)
-            </h3>
-            <p class="text-[11px] text-slate-500">Cumulative completion &amp; closure progression over time based on PMS Complete Date &amp; Closed Date</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center gap-1 border-r border-slate-200 pr-2">
-              ${[
-                { k: "week", lbl: "Weekly" },
-                { k: "month", lbl: "Monthly" },
-                { k: "day", lbl: "Daily (45d)" },
-              ]
-                .map(
-                  (g) => `
-                <button
-                  data-ov-line-gran="${g.k}"
-                  onclick="setOvLineGranularity('${g.k}')"
-                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                    state.overviewFilters.lineGranularity === g.k
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }"
-                >${g.lbl}</button>
-              `
-                )
-                .join("")}
-            </div>
-            <div class="flex items-center gap-1">
-              ${[
-                { k: "pct", lbl: "% Complete" },
-                { k: "count", lbl: "Closed Count" },
-              ]
-                .map(
-                  (m) => `
-                <button
-                  data-ov-line-mode="${m.k}"
-                  onclick="setOvLineMode('${m.k}')"
-                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                    state.overviewFilters.lineMode === m.k
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }"
-                >${m.lbl}</button>
-              `
-                )
-                .join("")}
-            </div>
-          </div>
-        </div>
-        <div class="mt-3 relative w-full" style="height:310px;">
-          <canvas id="chart-ov-progress-line" class="w-full h-full"></canvas>
-        </div>
-      </div>
-
-      <!-- 3. Table 1: Summary Matrix by Discipline -->
+      <!-- 1B. Summary Matrix by Discipline (Right on Top below KPIs) -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
@@ -1771,7 +1998,7 @@
                   const discPlCrit = esc(JSON.stringify({ source: "punchlist", system: sys, discipline: d.discipline, category: "ALL", status: "ALL", title: `${d.discipline} • All Punch` }));
                   return `
                     <tr class="hover:bg-blue-50/30 border-b border-slate-100 text-xs transition-colors">
-                      <td class="py-2.5 px-3 min-w-[160px]">
+                      <td class="py-2 px-3 min-w-[160px]">
                         <div class="flex items-center gap-2">
                           <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${theme.bar}"></span>
                           <span class="font-extrabold text-slate-900 text-xs sm:text-sm">${esc(d.discipline)}</span>
@@ -1811,7 +2038,7 @@
                         { source: "checksheet", system: sys, discipline: d.discipline, itrGroup: "ITR-B", status: "Remaining", title: `${d.discipline} • ITR-B (Remaining)` },
                         "indigo"
                       )}
-                      <td class="py-2.5 px-3 min-w-[130px]">
+                      <td class="py-2 px-3 min-w-[130px]">
                         <div class="flex items-center justify-between text-xs font-extrabold text-slate-800">
                           <span>${d.overallPct}%</span>
                           <span class="text-[10px] font-mono text-slate-500">${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()}</span>
@@ -1828,7 +2055,7 @@
             </tbody>
             <tfoot>
               <tr class="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs">
-                <td class="py-3 px-3 font-black text-slate-900 uppercase">TOTAL (${sys === "ALL" ? "CPP TOPSIDE" : esc(sys)})</td>
+                <td class="py-2.5 px-3 font-black text-slate-900 uppercase">TOTAL (${sys === "ALL" ? "CPP TOPSIDE" : esc(sys)})</td>
                 ${renderGateCellHtml(
                   discTotalRow.itrA,
                   { source: "checksheet", system: sys, itrGroup: "ITR-A", status: "ALL", title: "All ITR-A" },
@@ -1859,7 +2086,7 @@
                   { source: "checksheet", system: sys, itrGroup: "ITR-B", status: "Remaining", title: "ITR-B (Remaining)" },
                   "indigo"
                 )}
-                <td class="py-3 px-3">
+                <td class="py-2.5 px-3">
                   <div class="flex items-center justify-between text-xs font-black text-slate-900">
                     <span>${totPct}%</span>
                     <span class="text-[10px] font-mono text-slate-600">${totClosed.toLocaleString()}/${totAll.toLocaleString()}</span>
@@ -1871,6 +2098,197 @@
               </tr>
             </tfoot>
           </table>
+        </div>
+      </div>
+
+      <!-- 2A. Checksheets Charts Section (Dedicated ITR-A & ITR-B) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-blue-200/80 p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-black uppercase">Checksheets</span>
+                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                  ITR-A &amp; ITR-B Status by Discipline
+                </h3>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Click any bar to inspect ITR records in a Detail Tab</p>
+            </div>
+            <div class="flex items-center gap-1">
+              ${[
+                { k: "ALL_ITR", lbl: "All ITRs" },
+                { k: "ITR-A", lbl: "ITR-A" },
+                { k: "ITR-B", lbl: "ITR-B" },
+              ]
+                .map(
+                  (m) => `
+                <button
+                  data-ov-itr-bar="${m.k}"
+                  onclick="setOvItrBarMetric('${m.k}')"
+                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    state.overviewFilters.itrBarMetric === m.k ? "bg-blue-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }"
+                >${m.lbl}</button>
+              `
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="mt-3 relative w-full" style="height:280px;">
+            <canvas id="chart-ov-itr-disc" class="w-full h-full"></canvas>
+          </div>
+        </div>
+
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-blue-200/80 p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">ITR Trend</span>
+                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                  ITR-A &amp; ITR-B Completion Line
+                </h3>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative completion based on PMS Complete Date</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+                ${[
+                  { k: "week", lbl: "Weekly" },
+                  { k: "month", lbl: "Monthly" },
+                  { k: "day", lbl: "Daily (45d)" },
+                ]
+                  .map(
+                    (g) => `
+                  <button
+                    data-ov-itr-gran="${g.k}"
+                    onclick="setOvItrLineGran('${g.k}')"
+                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      state.overviewFilters.itrLineGran === g.k ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }"
+                  >${g.lbl}</button>
+                `
+                  )
+                  .join("")}
+              </div>
+              <div class="flex items-center gap-1">
+                ${[
+                  { k: "pct", lbl: "%" },
+                  { k: "count", lbl: "Count" },
+                ]
+                  .map(
+                    (m) => `
+                  <button
+                    data-ov-itr-mode="${m.k}"
+                    onclick="setOvItrLineMode('${m.k}')"
+                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      state.overviewFilters.itrLineMode === m.k ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }"
+                  >${m.lbl}</button>
+                `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 relative w-full" style="height:280px;">
+            <canvas id="chart-ov-itr-line" class="w-full h-full"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2B. Punch List Charts Section (Dedicated Cat A / B / C) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[10px] font-black uppercase">Punch List</span>
+                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                  Punch Closed vs Open by Discipline
+                </h3>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Click any bar to inspect Punch items in a Detail Tab</p>
+            </div>
+            <div class="flex items-center gap-1">
+              ${[
+                { k: "ALL_PUNCH", lbl: "All Cats" },
+                { k: "PUNCH-A", lbl: "Cat A" },
+                { k: "PUNCH-B", lbl: "Cat B" },
+                { k: "PUNCH-C", lbl: "Cat C" },
+              ]
+                .map(
+                  (m) => `
+                <button
+                  data-ov-punch-bar="${m.k}"
+                  onclick="setOvPunchBarMetric('${m.k}')"
+                  class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    state.overviewFilters.punchBarMetric === m.k ? "bg-rose-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }"
+                >${m.lbl}</button>
+              `
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="mt-3 relative w-full" style="height:280px;">
+            <canvas id="chart-ov-punch-disc" class="w-full h-full"></canvas>
+          </div>
+        </div>
+
+        <div class="min-w-0 overflow-hidden bg-white rounded-2xl border border-rose-200/80 p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black uppercase">Punch Trend</span>
+                <h3 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                  Punch Cat A / B / C Closure Line
+                </h3>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-0.5">Cumulative closure based on PMS Closed Date</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <div class="flex items-center gap-1 border-r border-slate-200 pr-1.5">
+                ${[
+                  { k: "week", lbl: "Weekly" },
+                  { k: "month", lbl: "Monthly" },
+                  { k: "day", lbl: "Daily (45d)" },
+                ]
+                  .map(
+                    (g) => `
+                  <button
+                    data-ov-punch-gran="${g.k}"
+                    onclick="setOvPunchLineGran('${g.k}')"
+                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      state.overviewFilters.punchLineGran === g.k ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }"
+                  >${g.lbl}</button>
+                `
+                  )
+                  .join("")}
+              </div>
+              <div class="flex items-center gap-1">
+                ${[
+                  { k: "pct", lbl: "%" },
+                  { k: "count", lbl: "Count" },
+                ]
+                  .map(
+                    (m) => `
+                  <button
+                    data-ov-punch-mode="${m.k}"
+                    onclick="setOvPunchLineMode('${m.k}')"
+                    class="px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      state.overviewFilters.punchLineMode === m.k ? "bg-rose-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }"
+                  >${m.lbl}</button>
+                `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 relative w-full" style="height:280px;">
+            <canvas id="chart-ov-punch-line" class="w-full h-full"></canvas>
+          </div>
         </div>
       </div>
 
@@ -1933,7 +2351,7 @@
             <thead>
               <tr class="bg-slate-900 text-white text-[11px] uppercase font-bold tracking-wider">
                 <th class="py-2.5 px-2 text-center whitespace-nowrap">#</th>
-                <th class="py-2.5 px-2.5 whitespace-nowrap">SubSystem No & Description</th>
+                <th class="py-2.5 px-2.5 whitespace-nowrap">SubSystem No &amp; Description</th>
                 <th class="py-2.5 px-2 text-center whitespace-nowrap">ITR-A (Comp / Total)</th>
                 <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat A (Closed / Total)</th>
                 <th class="py-2.5 px-2 text-center whitespace-nowrap">Punch Cat B (Closed / Total)</th>
@@ -1953,8 +2371,7 @@
     requestAnimationFrame(() => {
       if (state.activeTab === "overview") {
         updateAppHeaderStickyOffset();
-        renderOverviewCharts(stats);
-        renderOverviewLineChart();
+        renderAllOverviewCharts(stats);
       }
     });
   }
@@ -2462,6 +2879,15 @@
             .join("")}
         </div>
 
+        <!-- Per-Discipline Close/Open Breakdown of ITR-A/B & Punch A/B/C for this SubSystem -->
+        ${renderDisciplineSummaryStrip({
+          selectedDiscipline: "ALL",
+          subSystem: subNo,
+          plRows: d.plBase,
+          csRows: d.csBase,
+          scopeLabel: `SubSystem ${subNo}`,
+        })}
+
         <!-- Sub-view Controls: Section + Status + Search -->
         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <div class="flex flex-wrap items-center gap-1.5">
@@ -2741,6 +3167,20 @@
           </div>
         </div>
       </div>
+
+      <!-- 1B. Discipline Summary (Shown unless filtering a single Discipline) -->
+      ${
+        c.discipline === "ALL"
+          ? renderDisciplineSummaryStrip({
+              selectedDiscipline: c.discipline,
+              system: c.system,
+              subSystem: c.subSystem,
+              plRows: isPl ? filtered : undefined,
+              csRows: !isPl ? filtered : undefined,
+              scopeLabel: tab.title,
+            })
+          : ""
+      }
 
       <!-- 2. Detail Continuous List Table -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -3074,6 +3514,8 @@
 
     updateContinuousScrollStatus("punchlist", state.limit.punchlist, filtered.length);
     updatePlKpiCards(filtered, totalAll);
+    const plDiscWrap = document.getElementById("pl-disc-summary-wrap");
+    if (plDiscWrap) plDiscWrap.innerHTML = buildPunchlistTabDisciplineSummary(filtered);
     renderTabBar();
   }
 
@@ -3221,6 +3663,11 @@
             <div id="pl-kpi-closed-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: ${pctClosed}%"></div>
           </div>
         </div>
+      </div>
+
+      <!-- 1B. Discipline Summary Strip (Hidden if 1 Discipline selected) -->
+      <div id="pl-disc-summary-wrap">
+        ${buildPunchlistTabDisciplineSummary(filtered)}
       </div>
 
       <!-- 2. Interactive Filter & Search Bar -->
@@ -3754,6 +4201,8 @@
 
     updateContinuousScrollStatus("checksheet", state.limit.checksheet, filtered.length);
     updateCsKpiCards(filtered, totalAll);
+    const csDiscWrap = document.getElementById("cs-disc-summary-wrap");
+    if (csDiscWrap) csDiscWrap.innerHTML = buildChecksheetTabDisciplineSummary(filtered);
     renderTabBar();
   }
 
@@ -3923,6 +4372,11 @@
           </div>
           <p class="text-[10px] text-purple-700 font-semibold mt-2">${isFiltered ? `${filteredSubSet.size} of ${sortedSubs.length} Active SubSystems` : "CPP Commissioning SubSystems"}</p>
         </div>
+      </div>
+
+      <!-- 1B. Discipline Summary Strip (Hidden if 1 Discipline selected) -->
+      <div id="cs-disc-summary-wrap">
+        ${buildChecksheetTabDisciplineSummary(filtered)}
       </div>
 
       <!-- 2. Interactive Filter Bar -->
