@@ -1896,24 +1896,49 @@
     return list;
   }
 
-  function renderCompactGateCell(b) {
+  function renderInteractiveSummaryGateCell(b, disc, gateKey, opts) {
     if (!b || b.total === 0) {
       return `<td class="py-2 px-2.5 text-center text-slate-300 font-mono text-xs">-</td>`;
     }
+    const ctx = opts.context || "subsystem";
+    const tid = opts.tabId || "";
+    const isActGate = (opts.activeGate === gateKey);
+    const isActDisc = (opts.activeDiscipline === disc || (disc === "ALL" && (!opts.activeDiscipline || opts.activeDiscipline === "ALL")));
+    const isActCell = isActGate && isActDisc;
+    const isClosedAct = isActCell && (opts.activeStatus === "Closed" || opts.activeStatus === "Completed");
+    const isOpenAct = isActCell && (opts.activeStatus === "Open" || opts.activeStatus === "Remaining");
+
+    const cellBg = isActCell ? "bg-amber-50/90 ring-1 ring-amber-400" : "";
+
     return `
-      <td class="py-2 px-2.5 text-center whitespace-nowrap">
-        <div class="inline-flex items-center gap-1.5 font-mono text-xs sm:text-sm">
-          <span class="font-black text-emerald-700" title="Closed / Completed">${b.closed.toLocaleString()}</span>
-          <span class="text-slate-300 font-semibold">/</span>
-          <span class="font-bold ${b.open > 0 ? "text-rose-600" : "text-slate-400"}" title="Open / Remaining">${b.open.toLocaleString()}</span>
+      <td class="py-2 px-2 text-center whitespace-nowrap transition-colors ${cellBg}">
+        <div class="inline-flex items-center gap-1 font-mono text-xs sm:text-sm">
+          <button
+            type="button"
+            onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'Closed')"
+            class="px-1 py-0.5 rounded font-black text-emerald-700 hover:bg-emerald-100 hover:scale-105 cursor-pointer transition-all ${isClosedAct ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm' : ''}"
+            title="Click to view Closed/Completed items (${disc} • ${gateKey})"
+          >${b.closed.toLocaleString()}</button>
+          <span class="text-slate-300 font-semibold select-none">/</span>
+          <button
+            type="button"
+            onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'Open')"
+            class="px-1 py-0.5 rounded font-bold ${b.open > 0 ? (isOpenAct ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm' : 'text-rose-600 hover:bg-rose-100') : 'text-slate-400 hover:bg-slate-100'} hover:scale-105 cursor-pointer transition-all"
+            title="Click to view Open/Remaining items (${disc} • ${gateKey})"
+          >${b.open.toLocaleString()}</button>
         </div>
-        <div class="text-xs font-bold text-slate-500 mt-0.5">${b.pct}%</div>
+        <button
+          type="button"
+          onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'ALL')"
+          class="block w-full text-xs font-bold text-slate-500 hover:text-blue-700 hover:underline cursor-pointer mt-0.5 ${isActCell && opts.activeStatus === 'ALL' ? 'text-blue-700 font-black' : ''}"
+          title="Click to view all items (${(b.closed + b.open).toLocaleString()}) for ${disc} • ${gateKey}"
+        >${b.pct}%</button>
       </td>
     `;
   }
 
   function renderDisciplineSummaryStrip(opts = {}) {
-    if (opts.selectedDiscipline && opts.selectedDiscipline !== "ALL") return "";
+    if (opts.selectedDiscipline && opts.selectedDiscipline !== "ALL" && !opts.context) return "";
     const list = computeDisciplineBreakdown(opts);
     if (list.length === 0) return "";
 
@@ -1932,6 +1957,9 @@
     });
     ["itrA", "punchA", "punchB", "punchC", "itrB"].forEach((k) => finalizeGateBucket(tot[k]));
 
+    const ctx = opts.context || "subsystem";
+    const tid = opts.tabId || "";
+
     return `
       <details open class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <summary class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none list-none">
@@ -1945,6 +1973,7 @@
           </div>
           <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
             <span><strong class="text-emerald-700 font-bold">Closed</strong> / <strong class="text-rose-600 font-bold">Open</strong></span>
+            <span class="text-blue-600 font-bold hidden sm:inline"><i class="fas fa-hand-pointer mr-1"></i>Click numbers to filter detail</span>
             <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-xs">Toggle</span>
           </div>
         </summary>
@@ -1965,19 +1994,35 @@
               ${list
                 .map((d) => {
                   const theme = DISC_THEMES[d.discipline] || DISC_THEMES.Unassigned;
+                  const isRowActive = opts.activeDiscipline === d.discipline;
                   return `
-                    <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs sm:text-sm">
+                    <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs sm:text-sm ${isRowActive ? "bg-indigo-50/40" : ""}">
                       <td class="py-2 px-3.5 font-black text-slate-800 whitespace-nowrap">
-                        <span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background:${theme.bar}"></span>
-                        ${esc(d.discipline)}
+                        <button
+                          type="button"
+                          onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(d.discipline)}', 'ALL', 'ALL')"
+                          class="inline-flex items-center gap-2 hover:text-indigo-700 hover:underline cursor-pointer text-left font-black"
+                          title="Click to filter all items for Discipline: ${esc(d.discipline)}"
+                        >
+                          <span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${theme.bar}"></span>
+                          <span>${esc(d.discipline)}</span>
+                          ${isRowActive ? `<span class="ml-1 text-[10px] px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 font-bold">Active</span>` : ""}
+                        </button>
                       </td>
-                      ${renderCompactGateCell(d.itrA)}
-                      ${renderCompactGateCell(d.punchA)}
-                      ${renderCompactGateCell(d.punchB)}
-                      ${renderCompactGateCell(d.punchC)}
-                      ${renderCompactGateCell(d.itrB)}
+                      ${renderInteractiveSummaryGateCell(d.itrA, d.discipline, "ITR-A", opts)}
+                      ${renderInteractiveSummaryGateCell(d.punchA, d.discipline, "PUNCH-A", opts)}
+                      ${renderInteractiveSummaryGateCell(d.punchB, d.discipline, "PUNCH-B", opts)}
+                      ${renderInteractiveSummaryGateCell(d.punchC, d.discipline, "PUNCH-C", opts)}
+                      ${renderInteractiveSummaryGateCell(d.itrB, d.discipline, "ITR-B", opts)}
                       <td class="py-2 px-3 text-center whitespace-nowrap font-mono text-xs sm:text-sm font-black text-slate-800">
-                        ${d.overallPct}% <span class="text-xs font-normal text-slate-400">(${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()})</span>
+                        <button
+                          type="button"
+                          onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(d.discipline)}', 'ALL', 'ALL')"
+                          class="hover:text-indigo-700 hover:underline cursor-pointer"
+                          title="Click to filter all items for Discipline: ${esc(d.discipline)}"
+                        >
+                          ${d.overallPct}% <span class="text-xs font-normal text-slate-400">(${d.overallClosed.toLocaleString()}/${d.overallTotal.toLocaleString()})</span>
+                        </button>
                       </td>
                     </tr>
                   `;
@@ -1986,36 +2031,35 @@
             </tbody>
             <tfoot>
               <tr class="bg-slate-100 border-t border-slate-300 text-xs sm:text-sm font-black">
-                <td class="py-2.5 px-3.5 text-slate-900 font-black uppercase">TOTAL</td>
-                ${renderCompactGateCell(tot.itrA)}
-                ${renderCompactGateCell(tot.punchA)}
-                ${renderCompactGateCell(tot.punchB)}
-                ${renderCompactGateCell(tot.punchC)}
-                ${renderCompactGateCell(tot.itrB)}
-                <td class="py-2.5 px-3 text-center whitespace-nowrap font-mono text-xs sm:text-sm font-black text-emerald-700">
-                  ${
-                    (() => {
-                      const gt = tot.itrA.total + tot.punchA.total + tot.punchB.total + tot.punchC.total + tot.itrB.total;
-                      const gc = tot.itrA.closed + tot.punchA.closed + tot.punchB.closed + tot.punchC.closed + tot.itrB.closed;
-                      const gp = gt > 0 ? ((gc / gt) * 100).toFixed(1) : "0.0";
-                      return `${gp}% <span class="text-xs font-normal text-slate-500">(${gc.toLocaleString()}/${gt.toLocaleString()})</span>`;
-                    })()
-                  }
+                <td class="py-2.5 px-3.5 text-slate-900 font-black uppercase">
+                  <button
+                    type="button"
+                    onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', 'ALL', 'ALL', 'ALL')"
+                    class="hover:text-blue-700 hover:underline cursor-pointer text-left font-black"
+                    title="Click to reset filters and view All Disciplines"
+                  >TOTAL</button>
                 </td>
-              </tr>
-            </tfoot>
-                ${renderCompactGateCell(tot.punchB)}
-                ${renderCompactGateCell(tot.punchC)}
-                ${renderCompactGateCell(tot.itrB)}
-                <td class="py-1.5 px-2 text-center whitespace-nowrap font-mono text-[11px] font-black text-emerald-700">
-                  ${
-                    (() => {
-                      const gt = tot.itrA.total + tot.punchA.total + tot.punchB.total + tot.punchC.total + tot.itrB.total;
-                      const gc = tot.itrA.closed + tot.punchA.closed + tot.punchB.closed + tot.punchC.closed + tot.itrB.closed;
-                      const gp = gt > 0 ? ((gc / gt) * 100).toFixed(1) : "0.0";
-                      return `${gp}% <span class="text-[10px] font-normal text-slate-500">(${gc.toLocaleString()}/${gt.toLocaleString()})</span>`;
-                    })()
-                  }
+                ${renderInteractiveSummaryGateCell(tot.itrA, "ALL", "ITR-A", opts)}
+                ${renderInteractiveSummaryGateCell(tot.punchA, "ALL", "PUNCH-A", opts)}
+                ${renderInteractiveSummaryGateCell(tot.punchB, "ALL", "PUNCH-B", opts)}
+                ${renderInteractiveSummaryGateCell(tot.punchC, "ALL", "PUNCH-C", opts)}
+                ${renderInteractiveSummaryGateCell(tot.itrB, "ALL", "ITR-B", opts)}
+                <td class="py-2.5 px-3 text-center whitespace-nowrap font-mono text-xs sm:text-sm font-black text-emerald-700">
+                  <button
+                    type="button"
+                    onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', 'ALL', 'ALL', 'ALL')"
+                    class="hover:text-emerald-900 hover:underline cursor-pointer"
+                    title="Click to reset all filters"
+                  >
+                    ${
+                      (() => {
+                        const gt = tot.itrA.total + tot.punchA.total + tot.punchB.total + tot.punchC.total + tot.itrB.total;
+                        const gc = tot.itrA.closed + tot.punchA.closed + tot.punchB.closed + tot.punchC.closed + tot.itrB.closed;
+                        const gp = gt > 0 ? ((gc / gt) * 100).toFixed(1) : "0.0";
+                        return `${gp}% <span class="text-xs font-normal text-slate-500">(${gc.toLocaleString()}/${gt.toLocaleString()})</span>`;
+                      })()
+                    }
+                  </button>
                 </td>
               </tr>
             </tfoot>
@@ -2049,7 +2093,11 @@
       ? `Filtered Scope (${subSet.size} SubSystems)`
       : "All Disciplines & SubSystems";
     return renderDisciplineSummaryStrip({
+      context: "punchlist",
       selectedDiscipline: f.discipline,
+      activeDiscipline: f.discipline || "ALL",
+      activeGate: f.category !== "ALL" ? `PUNCH-${f.category}` : "ALL",
+      activeStatus: f.status || "ALL",
       subSystem: f.subSystem,
       plRows: filteredPl,
       subSet,
@@ -2072,7 +2120,11 @@
       ? `Filtered Scope (${subSet.size} SubSystems)`
       : "All Disciplines & SubSystems";
     return renderDisciplineSummaryStrip({
+      context: "checksheet",
       selectedDiscipline: f.discipline,
+      activeDiscipline: f.discipline || "ALL",
+      activeGate: f.checksheetType !== "ALL" ? f.checksheetType : "ALL",
+      activeStatus: f.status || "ALL",
       subSystem: f.subSystem,
       csRows: filteredCs,
       subSet,
@@ -2438,10 +2490,6 @@
                 </td>
               </tr>
             </tfoot>
-                  </div>
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </div>
@@ -2789,6 +2837,7 @@
         }
         if (c.subSystem !== "ALL" && subNo !== c.subSystem) return false;
         if (c.discipline !== "ALL" && disc !== c.discipline) return false;
+        if (tab.localFilters.discipline && tab.localFilters.discipline !== "ALL" && disc !== tab.localFilters.discipline) return false;
         if (c.category !== "ALL" && cat !== c.category.toUpperCase()) return false;
         if (stQ !== "ALL" && status !== stQ) return false;
 
@@ -2812,6 +2861,7 @@
         }
         if (c.subSystem !== "ALL" && subNo !== c.subSystem) return false;
         if (c.discipline !== "ALL" && disc !== c.discipline) return false;
+        if (tab.localFilters.discipline && tab.localFilters.discipline !== "ALL" && disc !== tab.localFilters.discipline) return false;
         if (c.itrGroup === "ITR-A" && !csType.endsWith("A")) return false;
         if (c.itrGroup === "ITR-B" && !csType.endsWith("B")) return false;
         if (stQ === "Completed" && !isComp) return false;
@@ -2915,11 +2965,15 @@
 
     const stQ = tab.localFilters.status || "ALL";
     const gateQ = tab.localFilters.gate || "ALL";
+    const discQ = tab.localFilters.discipline || "ALL";
     const q = (tab.localFilters.search || "").trim().toLowerCase();
 
     const plFiltered = plBase.filter((r) => {
       const cat = (r[8] || "B").toUpperCase();
       const status = plPool[r[9]] || "Open";
+      const disc = plPool[r[15]] || "Unassigned";
+
+      if (discQ !== "ALL" && disc.toUpperCase() !== discQ.toUpperCase()) return false;
       if (gateQ === "ITR-A" || gateQ === "ITR-B") return false;
       if (gateQ === "PUNCH-A" && cat !== "A") return false;
       if (gateQ === "PUNCH-B" && cat !== "B") return false;
@@ -2936,11 +2990,14 @@
     const csFiltered = csBase.filter((r) => {
       const csType = (csPool[r[5]] || "").trim().toUpperCase();
       const isComp = Boolean(csPool[r[6]]);
+      const disc = csPool[r[4]] || "Unassigned";
+
+      if (discQ !== "ALL" && disc.toUpperCase() !== discQ.toUpperCase()) return false;
       if (gateQ.startsWith("PUNCH-")) return false;
       if (gateQ === "ITR-A" && !csType.endsWith("A")) return false;
       if (gateQ === "ITR-B" && !csType.endsWith("B")) return false;
-      if (stQ === "Closed" && !isComp) return false;
-      if (stQ === "Open" && isComp) return false;
+      if ((stQ === "Closed" || stQ === "Completed") && !isComp) return false;
+      if ((stQ === "Open" || stQ === "Remaining") && isComp) return false;
       if (q) {
         const hay = `${r[2]} ${csPool[r[3]] || ""} ${csPool[r[4]] || ""} ${csPool[r[5]] || ""} ${csPool[r[11]] || ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -2991,6 +3048,153 @@
     tab.limitCs = BATCH_SIZE;
     renderTabBar();
     renderTabContent();
+  };
+
+  window.setSubDetailDiscipline = function (tabId, disc) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    if (!tab.localFilters) tab.localFilters = {};
+    tab.localFilters.discipline = tab.localFilters.discipline === disc ? "ALL" : disc;
+    tab.limitPl = BATCH_SIZE;
+    tab.limitCs = BATCH_SIZE;
+    renderTabBar();
+    renderTabContent();
+  };
+
+  window.resetSubDetailFilters = function (tabId) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    tab.localFilters = {
+      search: "",
+      status: "ALL",
+      section: "ALL",
+      gate: "ALL",
+      discipline: "ALL",
+    };
+    tab.limitPl = BATCH_SIZE;
+    tab.limitCs = BATCH_SIZE;
+    renderTabBar();
+    renderTabContent();
+    showToast("Reset all filters in SubSystem detail", "info");
+  };
+
+  window.filterSubDetailFromSummary = function (tabId, disc, gateKey, statusPart) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    if (!tab.localFilters) tab.localFilters = {};
+
+    const curDisc = tab.localFilters.discipline || "ALL";
+    const curGate = tab.localFilters.gate || "ALL";
+    const curSt = tab.localFilters.status || "ALL";
+
+    if (curDisc === disc && curGate === gateKey && curSt === statusPart) {
+      tab.localFilters.discipline = "ALL";
+      tab.localFilters.gate = "ALL";
+      tab.localFilters.status = "ALL";
+      tab.localFilters.section = "ALL";
+      showToast("Reset filters to all records in SubSystem", "info");
+    } else {
+      tab.localFilters.discipline = disc || "ALL";
+      tab.localFilters.gate = gateKey || "ALL";
+      tab.localFilters.status = statusPart || "ALL";
+
+      if (gateKey && gateKey.startsWith("ITR-")) {
+        tab.localFilters.section = "checksheet";
+      } else if (gateKey && gateKey.startsWith("PUNCH-")) {
+        tab.localFilters.section = "punchlist";
+      } else {
+        tab.localFilters.section = "ALL";
+      }
+      const label = `${disc !== "ALL" ? disc : "All Disc"} • ${gateKey !== "ALL" ? gateKey : "All Gates"}${statusPart !== "ALL" ? ` • ${statusPart}` : ""}`;
+      showToast(`Filtered SubSystem detail: ${label}`, "info");
+    }
+
+    tab.limitPl = BATCH_SIZE;
+    tab.limitCs = BATCH_SIZE;
+    renderTabBar();
+    renderTabContent();
+
+    setTimeout(() => {
+      const el = document.getElementById(`detail-sub-tables-${tabId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 60);
+  };
+
+  window.filterGateDetailFromSummary = function (tabId, disc, statusPart) {
+    const tab = state.detailTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    if (!tab.localFilters) tab.localFilters = {};
+    const isPl = tab.source === "punchlist";
+
+    const curDisc = tab.localFilters.discipline || "ALL";
+    const targetStatus = statusPart === "Closed" ? (isPl ? "Closed" : "Completed") : statusPart === "Open" ? (isPl ? "Open" : "Remaining") : "ALL";
+
+    if (curDisc === disc && tab.localFilters.status === targetStatus) {
+      tab.localFilters.discipline = "ALL";
+      tab.localFilters.status = "ALL";
+      showToast("Reset filters to all records", "info");
+    } else {
+      tab.localFilters.discipline = disc || "ALL";
+      tab.localFilters.status = targetStatus;
+      showToast(`Filtered: ${disc !== "ALL" ? disc : "All Disc"}${targetStatus !== "ALL" ? ` • ${targetStatus}` : ""}`, "info");
+    }
+    tab.limit = BATCH_SIZE;
+    renderTabBar();
+    renderTabContent();
+  };
+
+  window.filterPunchlistTabFromSummary = function (disc, gateKey, statusPart) {
+    if (disc && disc !== "ALL") {
+      state.filters.punchlist.discipline = disc;
+    }
+    if (gateKey && gateKey.startsWith("PUNCH-")) {
+      state.filters.punchlist.category = gateKey.replace("PUNCH-", "");
+    }
+    if (statusPart && statusPart !== "ALL") {
+      state.filters.punchlist.status = statusPart;
+    }
+    state.pagination.punchlist.page = 1;
+    renderPunchlistTab();
+    showToast(`Punchlist filtered by Discipline summary`, "info");
+    setTimeout(() => {
+      const el = document.getElementById("punchlist-table-container");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
+  window.filterChecksheetTabFromSummary = function (disc, gateKey, statusPart) {
+    if (disc && disc !== "ALL") {
+      state.filters.checksheet.discipline = disc;
+    }
+    if (gateKey === "ITR-A" || gateKey === "ITR-B") {
+      state.filters.checksheet.checksheetType = gateKey;
+    }
+    if (statusPart === "Closed") {
+      state.filters.checksheet.status = "Completed";
+    } else if (statusPart === "Open") {
+      state.filters.checksheet.status = "Remaining";
+    }
+    state.pagination.checksheet.page = 1;
+    renderChecksheetTab();
+    showToast(`Checksheets filtered by Discipline summary`, "info");
+    setTimeout(() => {
+      const el = document.getElementById("checksheet-table-container");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
+  window.onDisciplineSummaryCellClick = function (ctx, tabId, disc, gateKey, statusPart) {
+    if (ctx === "subsystem") {
+      filterSubDetailFromSummary(tabId, disc, gateKey, statusPart);
+    } else if (ctx === "gateDetail") {
+      filterGateDetailFromSummary(tabId, disc, statusPart);
+    } else if (ctx === "punchlist") {
+      filterPunchlistTabFromSummary(disc, gateKey, statusPart);
+    } else if (ctx === "checksheet") {
+      filterChecksheetTabFromSummary(disc, gateKey, statusPart);
+    }
   };
 
   window.handleSubDetailSectionScroll = function (container, tabId, sec) {
@@ -3220,6 +3424,7 @@
     const activeSec = tab.localFilters.section || "ALL";
     const activeGate = tab.localFilters.gate || "ALL";
     const activeSt = tab.localFilters.status || "ALL";
+    const activeDisc = tab.localFilters.discipline || "ALL";
 
     tab.limitPl = Math.min(d.plFiltered.length, Math.max(tab.limitPl || BATCH_SIZE, BATCH_SIZE));
     tab.limitCs = Math.min(d.csFiltered.length, Math.max(tab.limitCs || BATCH_SIZE, BATCH_SIZE));
@@ -3236,6 +3441,12 @@
 
     const showPunch = (activeSec === "ALL" || activeSec === "punchlist") && !activeGate.startsWith("ITR-");
     const showCheck = (activeSec === "ALL" || activeSec === "checksheet") && !activeGate.startsWith("PUNCH-");
+    const isFilteredSub =
+      activeGate !== "ALL" ||
+      activeDisc !== "ALL" ||
+      activeSt !== "ALL" ||
+      Boolean((tab.localFilters.search || "").trim()) ||
+      activeSec !== "ALL";
 
     container.innerHTML = `
       <!-- 1. SubSystem Full Dossier Banner -->
@@ -3301,7 +3512,12 @@
 
         <!-- Per-Discipline Close/Open Breakdown of ITR-A/B & Punch A/B/C for this SubSystem -->
         ${renderDisciplineSummaryStrip({
+          context: "subsystem",
+          tabId: tab.id,
           selectedDiscipline: "ALL",
+          activeDiscipline: activeDisc,
+          activeGate: activeGate,
+          activeStatus: activeSt,
           subSystem: subNo,
           plRows: d.plBase,
           csRows: d.csBase,
@@ -3309,7 +3525,7 @@
         })}
 
         <!-- Sub-view Controls: Section + Status + Search -->
-        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        <div id="detail-sub-tables-${esc(tab.id)}" class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <div class="flex flex-wrap items-center gap-1.5">
             ${[
               { k: "ALL", lbl: `All (${d.plBase.length + d.csBase.length})` },
@@ -3349,7 +3565,17 @@
 
             ${
               activeGate !== "ALL"
-                ? `<button onclick="setSubDetailGate('${esc(tab.id)}', '${activeGate}')" class="px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold"><i class="fas fa-filter mr-1"></i>${activeGate} ×</button>`
+                ? `<button onclick="setSubDetailGate('${esc(tab.id)}', '${activeGate}')" class="px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold transition-colors" title="Click to clear Gate filter"><i class="fas fa-filter mr-1"></i>${activeGate} ×</button>`
+                : ""
+            }
+            ${
+              activeDisc !== "ALL"
+                ? `<button onclick="setSubDetailDiscipline('${esc(tab.id)}', 'ALL')" class="px-2.5 py-1.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-900 text-xs font-bold transition-colors flex items-center gap-1" title="Click to clear Discipline filter"><i class="fas fa-layer-group text-indigo-600 mr-1"></i>${esc(activeDisc)} ×</button>`
+                : ""
+            }
+            ${
+              isFilteredSub
+                ? `<button onclick="resetSubDetailFilters('${esc(tab.id)}')" class="px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition-colors" title="Reset all SubSystem filters"><i class="fas fa-rotate-left mr-1"></i>Reset</button>`
                 : ""
             }
           </div>
@@ -3374,7 +3600,9 @@
           <div class="p-3 bg-rose-50/70 border-b border-rose-100 flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <i class="fas fa-clipboard-list text-rose-600"></i>
-              <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">Punchlist Items (${esc(subNo)})</h4>
+              <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">
+                Punchlist Items (${esc(subNo)}${activeDisc !== "ALL" ? ` • ${esc(activeDisc)}` : ""}${activeGate !== "ALL" ? ` • ${esc(activeGate)}` : ""}${activeSt !== "ALL" ? ` • ${esc(activeSt)}` : ""})
+              </h4>
               <span id="detail-sub-pl-count-${esc(tab.id)}" class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[11px] font-bold">${d.plFiltered.length.toLocaleString()} items</span>
             </div>
             ${
@@ -3425,7 +3653,9 @@
           <div class="p-3 bg-blue-50/70 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <i class="fas fa-tasks text-blue-600"></i>
-              <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">Checksheets — ITR-A &amp; ITR-B (${esc(subNo)})</h4>
+              <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 uppercase tracking-wide">
+                Checksheets — ITR-A &amp; ITR-B (${esc(subNo)}${activeDisc !== "ALL" ? ` • ${esc(activeDisc)}` : ""}${activeGate !== "ALL" ? ` • ${esc(activeGate)}` : ""}${activeSt !== "ALL" ? ` • ${esc(activeSt)}` : ""})
+              </h4>
               <span id="detail-sub-cs-count-${esc(tab.id)}" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">${d.csFiltered.length.toLocaleString()} items</span>
             </div>
             ${
@@ -3494,6 +3724,7 @@
       chips.push(`SubSystem: ${c.subSystem}${desc}`);
     }
     if (c.discipline !== "ALL") chips.push(`Discipline: ${c.discipline}`);
+    if (tab.localFilters.discipline && tab.localFilters.discipline !== "ALL") chips.push(`Filtered Discipline: ${tab.localFilters.discipline}`);
     if (isPl && c.category !== "ALL") chips.push(`Punch Cat: ${c.category}`);
     if (!isPl && c.itrGroup !== "ALL") chips.push(`Gate: ${c.itrGroup}`);
     if (activeSt !== "ALL") chips.push(`Status: ${activeSt}`);
@@ -3627,7 +3858,12 @@
       ${
         c.discipline === "ALL"
           ? renderDisciplineSummaryStrip({
+              context: "gateDetail",
+              tabId: tab.id,
               selectedDiscipline: c.discipline,
+              activeDiscipline: tab.localFilters.discipline || "ALL",
+              activeGate: isPl ? (c.category !== "ALL" ? `PUNCH-${c.category}` : "ALL") : c.itrGroup,
+              activeStatus: tab.localFilters.status || "ALL",
               system: c.system,
               subSystem: c.subSystem,
               plRows: isPl ? filtered : undefined,
