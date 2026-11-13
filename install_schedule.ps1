@@ -7,7 +7,7 @@ $script = Join-Path $PSScriptRoot "run_daily.py"
 $user   = "$env:USERDOMAIN\$env:USERNAME"
 
 $action = New-ScheduledTaskAction -Execute $pyw -Argument "`"$script`"" `
-          -WorkingDirectory "$env:LOCALAPPDATA\PunchlistDownloader"
+          -WorkingDirectory "$PSScriptRoot"
 
 # 1) Khi đăng nhập Windows (mở máy), trễ 2 phút cho mạng & Google Drive sẵn sàng
 $tLogon = New-ScheduledTaskTrigger -AtLogOn -User $user

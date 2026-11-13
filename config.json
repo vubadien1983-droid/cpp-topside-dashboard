@@ -3,6 +3,7 @@
   "checksheet_url": "https://pms-web.ptscmc.com.vn/PREC_ITR_Checksheet_Overview_Viewer",
   "facility_code": "CPP TOPSIDE",
   "username": "PQ025874",
+  "export_option": "No Image",
   "punchlist_file_prefix": "PunchList_CPP_TOPSIDE",
   "checksheet_file_prefix": "Checksheet_CPP_TOPSIDE",
   "download_dir": "Downloads",

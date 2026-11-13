@@ -60,6 +60,7 @@ def load_config() -> dict:
         cfg = json.load(f)
     cfg["url"] = cfg.get("punchlist_url", cfg.get("url", "https://pms-web.ptscmc.com.vn/PREC_ITR_PunchList_Overview"))
     cfg["file_prefix"] = cfg.get("punchlist_file_prefix", cfg.get("file_prefix", "PunchList_CPP_TOPSIDE"))
+    cfg["export_option"] = cfg.get("export_option", "No Image")
     d = Path(cfg.get("download_dir", "Downloads"))
     cfg["download_dir"] = d if d.is_absolute() else (APP_DIR / d).resolve()
     return cfg
@@ -229,11 +230,12 @@ def load_data(page, cfg) -> int:
 def export_data(page, cfg) -> Path:
     out_dir: Path = cfg["download_dir"]
     out_dir.mkdir(parents=True, exist_ok=True)
+    export_opt = cfg.get("export_option", "No Image")
 
-    log.info("Click 'Export data' -> '%s'", cfg["export_option"])
+    log.info("Click 'Export data' -> '%s'", export_opt)
     with page.expect_download(timeout=cfg["download_timeout_sec"] * 1000) as dl_info:
         page.locator("button[aria-label='Export data']").first.click()
-        opt = page.get_by_text(cfg["export_option"], exact=True).first
+        opt = page.get_by_text(export_opt, exact=True).first
         opt.wait_for(state="visible", timeout=30_000)
         opt.click()
         log.info("Đang chờ file tải về...")
