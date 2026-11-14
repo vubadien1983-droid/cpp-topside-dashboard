@@ -5681,53 +5681,787 @@
     }));
   }
 
-  // --- Export to Excel (Client-side via SheetJS) ---
-  window.exportActiveTabToExcel = function () {
-    if (!window.XLSX || !state.data) {
-      alert("Excel library is loading, please try again in a moment.");
+  // =========================================================================
+  // PROFESSIONAL REPORT EXPORT ENGINE (EXCEL & PDF)
+  // Vietnam Block B Gas Development Project • EPC#1 CPP TOPSIDE
+  // Styled Corporate Output in English (ExcelJS & jsPDF-autoTable)
+  // =========================================================================
+
+  function getReportTimestamp() {
+    const now = new Date();
+    const dateFormatted = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    const timeFormatted = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const isoDate = now.toISOString().slice(0, 10);
+    return {
+      dateFormatted,
+      timeFormatted,
+      fullStr: `${dateFormatted} ${timeFormatted}`,
+      isoDate,
+    };
+  }
+
+  const EXCEL_THEME = {
+    headerBg: "FF0F172A",       // Dark Corporate Navy (Slate 900)
+    subtitleBg: "FF1E3A8A",     // Deep Blue 900
+    metaBg: "FFF1F5F9",         // Light Slate 100
+    metaText: "FF334155",       // Slate 700
+    tableHeaderBg: "FF1E293B",  // Slate 800
+    tableHeaderBorder: "FF475569", // Slate 600
+    zebraBg: "FFF8FAFC",        // Subtle Alternating Slate 50
+    borderColor: "FFE2E8F0",    // Slate 200
+    summaryTotalBg: "FFF1F5F9", // Slate 100 for totals
+    // Status badges
+    completedBg: "FFDCFCE7",    // Emerald 100
+    completedText: "FF15803D",  // Emerald 700
+    remainingBg: "FFFEE2E2",    // Rose 100
+    remainingText: "FFB91C1C",  // Rose 700
+    // Punch categories
+    catABg: "FFFEF2F2",
+    catAText: "FFDC2626",
+    catBBg: "FFFFFBEB",
+    catBText: "FFD97706",
+    catCBg: "FFEFF6FF",
+    catCText: "FF2563EB",
+  };
+
+  function getExcelColLetter(idx) {
+    let s = "";
+    while (idx > 0) {
+      const m = (idx - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      idx = Math.floor((idx - m) / 26);
+    }
+    return s;
+  }
+
+  async function downloadExcelWorkbook(wb, filename) {
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function applyExcelReportBanner(ws, { subtitle, metaText, colCount }) {
+    const endCol = Math.max(colCount || 10, 8);
+    // Row 1: Corporate Title Banner
+    ws.mergeCells(1, 1, 1, endCol);
+    const c1 = ws.getCell("A1");
+    c1.value = "VIETNAM BLOCK B GAS DEVELOPMENT PROJECT • EPC#1 CPP TOPSIDE";
+    c1.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.headerBg } };
+    c1.font = { name: "Segoe UI", size: 12.5, bold: true, color: { argb: "FFFFFFFF" } };
+    c1.alignment = { vertical: "middle", horizontal: "center" };
+    ws.getRow(1).height = 30;
+
+    // Row 2: Report Subtitle
+    ws.mergeCells(2, 1, 2, endCol);
+    const c2 = ws.getCell("A2");
+    c2.value = String(subtitle || "OFFICIAL STATUS & COMPLETION DOSSIER").toUpperCase();
+    c2.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.subtitleBg } };
+    c2.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    c2.alignment = { vertical: "middle", horizontal: "center" };
+    ws.getRow(2).height = 24;
+
+    // Row 3: Metadata Bar
+    ws.mergeCells(3, 1, 3, endCol);
+    const c3 = ws.getCell("A3");
+    c3.value = metaText;
+    c3.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.metaBg } };
+    c3.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: EXCEL_THEME.metaText } };
+    c3.alignment = { vertical: "middle", horizontal: "center" };
+    ws.getRow(3).height = 22;
+
+    // Row 4: Spacer
+    ws.getRow(4).height = 8;
+
+    return 5;
+  }
+
+  function styleExcelDataTable(ws, startRow, headers, rows, minColWidths = {}) {
+    // Header Row
+    const hRow = ws.getRow(startRow);
+    hRow.height = 26;
+    headers.forEach((h, idx) => {
+      const cell = hRow.getCell(idx + 1);
+      cell.value = h;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.tableHeaderBg } };
+      cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      cell.border = {
+        top: { style: "thin", color: { argb: EXCEL_THEME.tableHeaderBorder } },
+        left: { style: "thin", color: { argb: EXCEL_THEME.tableHeaderBorder } },
+        bottom: { style: "medium", color: { argb: "FF0F172A" } },
+        right: { style: "thin", color: { argb: EXCEL_THEME.tableHeaderBorder } },
+      };
+    });
+
+    const maxLens = headers.map((h) => String(h || "").length);
+    const statusIdx = headers.findIndex((h) => /status/i.test(h));
+    const catIdx = headers.findIndex((h) => /category|^cat$/i.test(h));
+    const descIndices = new Set(
+      headers.map((h, i) => (/description|action|defect|title|remarks/i.test(h) ? i : -1)).filter((i) => i >= 0)
+    );
+
+    // Data Rows
+    rows.forEach((r, rIdx) => {
+      const rowNum = startRow + 1 + rIdx;
+      const dRow = ws.getRow(rowNum);
+      dRow.height = 20;
+      const isEven = rIdx % 2 === 1;
+
+      r.forEach((val, cIdx) => {
+        const cell = dRow.getCell(cIdx + 1);
+        cell.value = val !== null && val !== undefined ? val : "";
+        cell.font = { name: "Segoe UI", size: 9.5, color: { argb: "FF1E293B" } };
+        cell.border = {
+          top: { style: "thin", color: { argb: EXCEL_THEME.borderColor } },
+          left: { style: "thin", color: { argb: EXCEL_THEME.borderColor } },
+          bottom: { style: "thin", color: { argb: EXCEL_THEME.borderColor } },
+          right: { style: "thin", color: { argb: EXCEL_THEME.borderColor } },
+        };
+
+        const isDesc = descIndices.has(cIdx);
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: isDesc ? "left" : "center",
+        };
+
+        if (cIdx === statusIdx) {
+          const sVal = String(val || "").trim().toLowerCase();
+          if (sVal === "completed" || sVal === "closed") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.completedBg } };
+            cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: EXCEL_THEME.completedText } };
+          } else if (sVal === "remaining" || sVal === "open") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.remainingBg } };
+            cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: EXCEL_THEME.remainingText } };
+          }
+        } else if (cIdx === catIdx) {
+          const cVal = String(val || "").trim().toUpperCase();
+          if (cVal === "A") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.catABg } };
+            cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: EXCEL_THEME.catAText } };
+          } else if (cVal === "B") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.catBBg } };
+            cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: EXCEL_THEME.catBText } };
+          } else if (cVal === "C") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.catCBg } };
+            cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: EXCEL_THEME.catCText } };
+          }
+        } else if (isEven) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.zebraBg } };
+        }
+
+        const strVal = String(val !== null && val !== undefined ? val : "");
+        if (strVal.length > maxLens[cIdx]) {
+          maxLens[cIdx] = strVal.length;
+        }
+      });
+    });
+
+    // Auto Column Widths with Minimum Padding
+    headers.forEach((h, idx) => {
+      const col = ws.getColumn(idx + 1);
+      const minW = minColWidths[h] || 12;
+      const calculated = Math.min(Math.max(maxLens[idx] + 4, minW), 48);
+      col.width = calculated;
+    });
+
+    // Auto-filter & Frozen Header Pane
+    const lastColLetter = getExcelColLetter(headers.length);
+    ws.autoFilter = { from: `A${startRow}`, to: `${lastColLetter}${startRow}` };
+    ws.views = [{ state: "frozen", ySplit: startRow, xSplit: 0 }];
+  }
+
+  // --- Export to Excel (Client-side via ExcelJS with XLSX Fallback) ---
+  window.exportActiveTabToExcel = async function () {
+    if (!state.data) {
+      alert("Project data is not yet loaded.");
       return;
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const { fullStr: nowStr, isoDate: todayStr } = getReportTimestamp();
+
+    if (!window.ExcelJS) {
+      // Graceful fallback to SheetJS if ExcelJS is unavailable
+      exportActiveTabToExcelFallback(todayStr);
+      return;
+    }
+
+    try {
+      showToast("Generating professional Excel report...", "info");
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "Vietnam Block B EPC#1 Topsides Team";
+      wb.lastModifiedBy = "PMS Pre-Commissioning System";
+      wb.created = new Date();
+      wb.modified = new Date();
+
+      if (state.activeTab === "overview") {
+        const stats = getOverviewStats();
+        const g = stats.global;
+        const totAll = g.itrA.total + g.punchA.total + g.punchB.total + g.punchC.total + g.itrB.total;
+        const totClosed = g.itrA.closed + g.punchA.closed + g.punchB.closed + g.punchC.closed + g.itrB.closed;
+        const totOpen = g.itrA.open + g.punchA.open + g.punchB.open + g.punchC.open + g.itrB.open;
+        const totPct = totAll > 0 ? ((totClosed / totAll) * 100).toFixed(1) : "0.0";
+        const sysFilter = state.overviewFilters.system || "ALL";
+
+        // 1. Executive Summary Sheet
+        const wsExec = wb.addWorksheet("Executive Summary");
+        applyExcelReportBanner(wsExec, {
+          subtitle: "EXECUTIVE PRE-COMMISSIONING & PUNCHLIST OVERVIEW",
+          metaText: `Report Generated: ${nowStr} | Scope: System ${sysFilter} | Overall Progress: ${totPct}% | Total Scope: ${totAll.toLocaleString()} items (${totClosed.toLocaleString()} Closed, ${totOpen.toLocaleString()} Open) | Source: PMS Daily Sync`,
+          colCount: 6,
+        });
+
+        // Gate Summary Table
+        const gateHeaders = ["Gate / Phase", "Scope Description", "Total Scope", "Closed / Completed", "Open / Remaining", "Progress %"];
+        const gateRows = [
+          ["ITR-A", "Pre-Commissioning Checksheets", g.itrA.total, g.itrA.closed, g.itrA.open, `${g.itrA.pct}%`],
+          ["Punch Cat A", "Critical Pre-Commissioning Punch Items", g.punchA.total, g.punchA.closed, g.punchA.open, `${g.punchA.pct}%`],
+          ["Punch Cat B", "Commissioning Punch Items", g.punchB.total, g.punchB.closed, g.punchB.open, `${g.punchB.pct}%`],
+          ["Punch Cat C", "Post-Commissioning / Minor Punch Items", g.punchC.total, g.punchC.closed, g.punchC.open, `${g.punchC.pct}%`],
+          ["ITR-B", "Commissioning Checksheets", g.itrB.total, g.itrB.closed, g.itrB.open, `${g.itrB.pct}%`],
+          ["TOTAL PRE-COMM", "Overall Combined Pre-Commissioning & Punch Scope", totAll, totClosed, totOpen, `${totPct}%`],
+        ];
+        styleExcelDataTable(wsExec, 5, gateHeaders, gateRows, {
+          "Gate / Phase": 16,
+          "Scope Description": 38,
+          "Total Scope": 15,
+          "Closed / Completed": 18,
+          "Open / Remaining": 18,
+          "Progress %": 15,
+        });
+
+        // Discipline Closure Table below Gate Table
+        const discStartRow = 5 + gateRows.length + 3;
+        wsExec.mergeCells(discStartRow - 1, 1, discStartRow - 1, 7);
+        const discTitle = wsExec.getCell(`A${discStartRow - 1}`);
+        discTitle.value = "DISCIPLINE CLOSURE SUMMARY (ITR-A/B & PUNCH CAT A/B/C)";
+        discTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_THEME.subtitleBg } };
+        discTitle.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        discTitle.alignment = { vertical: "middle", horizontal: "center" };
+        wsExec.getRow(discStartRow - 1).height = 22;
+
+        const discHeaders = ["Discipline", "ITR-A (Comp / Total)", "Punch A (Cls / Total)", "Punch B (Cls / Total)", "Punch C (Cls / Total)", "ITR-B (Comp / Total)", "Overall Progress %"];
+        const discRows = stats.byDiscipline.map((d) => [
+          d.discipline,
+          `${d.itrA.closed} / ${d.itrA.total} (${d.itrA.pct}%)`,
+          `${d.punchA.closed} / ${d.punchA.total} (${d.punchA.pct}%)`,
+          `${d.punchB.closed} / ${d.punchB.total} (${d.punchB.pct}%)`,
+          `${d.punchC.closed} / ${d.punchC.total} (${d.punchC.pct}%)`,
+          `${d.itrB.closed} / ${d.itrB.total} (${d.itrB.pct}%)`,
+          `${d.overallPct}% (${d.overallClosed}/${d.overallTotal})`,
+        ]);
+        styleExcelDataTable(wsExec, discStartRow, discHeaders, discRows, {
+          Discipline: 20,
+          "ITR-A (Comp / Total)": 24,
+          "Punch A (Cls / Total)": 24,
+          "Punch B (Cls / Total)": 24,
+          "Punch C (Cls / Total)": 24,
+          "ITR-B (Comp / Total)": 24,
+          "Overall Progress %": 22,
+        });
+
+        // 2. By SubSystem Sheet
+        const wsSub = wb.addWorksheet("By SubSystem");
+        applyExcelReportBanner(wsSub, {
+          subtitle: "SUBSYSTEM SUMMARY MATRIX & PROGRESS DOSSIER",
+          metaText: `Report Generated: ${nowStr} | Total Subsystems: ${stats.bySubSystem.length} | Scope: System ${sysFilter}`,
+          colCount: 9,
+        });
+        const subHeaders = ["System No", "SubSystem No", "SubSystem Description", "ITR-A (Comp/Total)", "Punch Cat A", "Punch Cat B", "Punch Cat C", "ITR-B (Comp/Total)", "Overall %"];
+        const subRows = stats.bySubSystem.map((s) => [
+          inferSystemFromSub(s.subSystem),
+          s.subSystem,
+          s.description || state.data.subsystems[s.subSystem] || "",
+          `${s.itrA.closed} / ${s.itrA.total} (${s.itrA.pct}%)`,
+          `${s.punchA.closed} / ${s.punchA.total} (${s.punchA.pct}%)`,
+          `${s.punchB.closed} / ${s.punchB.total} (${s.punchB.pct}%)`,
+          `${s.punchC.closed} / ${s.punchC.total} (${s.punchC.pct}%)`,
+          `${s.itrB.closed} / ${s.itrB.total} (${s.itrB.pct}%)`,
+          `${s.overallPct}%`,
+        ]);
+        styleExcelDataTable(wsSub, 5, subHeaders, subRows, {
+          "System No": 14,
+          "SubSystem No": 18,
+          "SubSystem Description": 32,
+          "ITR-A (Comp/Total)": 22,
+          "Punch Cat A": 18,
+          "Punch Cat B": 18,
+          "Punch Cat C": 18,
+          "ITR-B (Comp/Total)": 22,
+          "Overall %": 14,
+        });
+
+        // 3. By Discipline Sheet
+        const wsDisc = wb.addWorksheet("By Discipline");
+        applyExcelReportBanner(wsDisc, {
+          subtitle: "DISCIPLINE BREAKDOWN & COMPLETION REGISTER",
+          metaText: `Report Generated: ${nowStr} | Total Disciplines: ${stats.byDiscipline.length} | Scope: System ${sysFilter}`,
+          colCount: 7,
+        });
+        styleExcelDataTable(wsDisc, 5, discHeaders, discRows, {
+          Discipline: 22,
+          "ITR-A (Comp / Total)": 24,
+          "Punch A (Cls / Total)": 24,
+          "Punch B (Cls / Total)": 24,
+          "Punch C (Cls / Total)": 24,
+          "ITR-B (Comp / Total)": 24,
+          "Overall Progress %": 22,
+        });
+
+        // 4. Punchlist Register Sheet
+        const plRows = getFilteredPunchlist();
+        const wsPl = wb.addWorksheet("Punchlist Register");
+        applyExcelReportBanner(wsPl, {
+          subtitle: "PUNCHLIST MASTER CLEARANCE REGISTER",
+          metaText: `Report Generated: ${nowStr} | Filter Scope: System ${sysFilter} | Total Items: ${plRows.length.toLocaleString()}`,
+          colCount: 17,
+        });
+        const plHeaders = ["No.", "System No", "SubSystem No", "PunchList No", "Raised No", "Tag No", "Tag Description", "Category", "Status", "Open Date", "Closed Date", "Discipline", "Defect Description", "Corrective Action", "Target Date", "Action By", "MRIR No"];
+        const plExportRows = plRows.map((r, i) => [
+          i + 1,
+          resolvePl(r, 0),
+          resolvePl(r, 1),
+          r[2],
+          resolvePl(r, 3) || "-",
+          r[5],
+          resolvePl(r, 6),
+          r[8],
+          resolvePl(r, 9) || "Open",
+          resolvePl(r, 10) || "-",
+          resolvePl(r, 11) || "-",
+          resolvePl(r, 15),
+          resolvePl(r, 16),
+          resolvePl(r, 17),
+          resolvePl(r, 21) || "-",
+          resolvePl(r, 12) || "-",
+          resolvePl(r, 13) || "-",
+        ]);
+        styleExcelDataTable(wsPl, 5, plHeaders, plExportRows, {
+          "No.": 8,
+          "System No": 14,
+          "SubSystem No": 16,
+          "PunchList No": 16,
+          "Raised No": 15,
+          "Tag No": 18,
+          "Tag Description": 28,
+          "Category": 10,
+          "Status": 12,
+          "Open Date": 14,
+          "Closed Date": 14,
+          "Discipline": 15,
+          "Defect Description": 42,
+          "Corrective Action": 42,
+          "Target Date": 14,
+          "Action By": 14,
+          "MRIR No": 14,
+        });
+
+        // 5. Checksheet Register Sheet
+        const csRows = getFilteredChecksheets();
+        const wsCs = wb.addWorksheet("Checksheet Register");
+        applyExcelReportBanner(wsCs, {
+          subtitle: "PRE-COMMISSIONING CHECKSHEET MASTER REGISTER",
+          metaText: `Report Generated: ${nowStr} | Filter Scope: System ${sysFilter} | Total Items: ${csRows.length.toLocaleString()}`,
+          colCount: 14,
+        });
+        const csHeaders = ["No.", "SubSystem No", "SubSystem Description", "Tag No", "Tag Description", "Discipline", "CheckSheet Type", "Status", "Complete Date", "Plan Finish", "Norm (Mhrs)", "Phase", "Location", "SubContractor"];
+        const csExportRows = csRows.map((r, i) => [
+          i + 1,
+          resolveCs(r, 1),
+          state.data.subsystems[resolveCs(r, 1)] || "",
+          r[2],
+          resolveCs(r, 3),
+          resolveCs(r, 4),
+          resolveCs(r, 5),
+          resolveCs(r, 6) ? "Completed" : "Remaining",
+          resolveCs(r, 6) || "-",
+          resolveCs(r, 7) || "-",
+          r[8] || "",
+          resolveCs(r, 9) || "",
+          resolveCs(r, 10) || "",
+          resolveCs(r, 11) || "",
+        ]);
+        styleExcelDataTable(wsCs, 5, csHeaders, csExportRows, {
+          "No.": 8,
+          "SubSystem No": 16,
+          "SubSystem Description": 28,
+          "Tag No": 18,
+          "Tag Description": 30,
+          "Discipline": 15,
+          "CheckSheet Type": 16,
+          "Status": 14,
+          "Complete Date": 15,
+          "Plan Finish": 15,
+          "Norm (Mhrs)": 12,
+          "Phase": 10,
+          "Location": 12,
+          "SubContractor": 15,
+        });
+
+        await downloadExcelWorkbook(wb, `CPP_TOPSIDE_Executive_Report_${todayStr}.xlsx`);
+        showToast("Successfully exported Executive Overview Dossier (5 sheets) to Excel!", "success");
+        return;
+      }
+
+      if (state.activeTab === "punchlist") {
+        const rows = getFilteredPunchlist();
+        const total = rows.length;
+        const closed = rows.filter((r) => (resolvePl(r, 9) || "Open") === "Closed").length;
+        const open = total - closed;
+        const pct = total > 0 ? ((closed / total) * 100).toFixed(1) : "0.0";
+        const f = state.filters.punchlist;
+        const scopeStr = `System: ${f.system || "ALL"} • SubSystem: ${f.subSystem || "ALL"} • Disc: ${f.discipline || "ALL"} • Cat: ${f.category || "ALL"} • Status: ${f.status || "ALL"}`;
+
+        const ws = wb.addWorksheet("Punchlist Register");
+        applyExcelReportBanner(ws, {
+          subtitle: "PUNCHLIST MASTER CLEARANCE & DEFECT STATUS REGISTER",
+          metaText: `Report Generated: ${nowStr} | Scope: ${scopeStr} | Total: ${total.toLocaleString()} | Closed: ${closed.toLocaleString()} (${pct}%) | Open: ${open.toLocaleString()} | Source: PMS Daily Sync`,
+          colCount: 17,
+        });
+
+        const headers = ["No.", "System No", "SubSystem No", "PunchList No", "Raised No", "Tag No", "Tag Description", "Category", "Status", "Open Date", "Closed Date", "Discipline", "Defect Description", "Corrective Action", "Target Date", "Action By", "MRIR No"];
+        const exportRows = rows.map((r, i) => [
+          i + 1,
+          resolvePl(r, 0),
+          resolvePl(r, 1),
+          r[2],
+          resolvePl(r, 3) || "-",
+          r[5],
+          resolvePl(r, 6),
+          r[8],
+          resolvePl(r, 9) || "Open",
+          resolvePl(r, 10) || "-",
+          resolvePl(r, 11) || "-",
+          resolvePl(r, 15),
+          resolvePl(r, 16),
+          resolvePl(r, 17),
+          resolvePl(r, 21) || "-",
+          resolvePl(r, 12) || "-",
+          resolvePl(r, 13) || "-",
+        ]);
+
+        styleExcelDataTable(ws, 5, headers, exportRows, {
+          "No.": 8,
+          "System No": 14,
+          "SubSystem No": 16,
+          "PunchList No": 16,
+          "Raised No": 15,
+          "Tag No": 18,
+          "Tag Description": 28,
+          "Category": 10,
+          "Status": 12,
+          "Open Date": 14,
+          "Closed Date": 14,
+          "Discipline": 15,
+          "Defect Description": 42,
+          "Corrective Action": 42,
+          "Target Date": 14,
+          "Action By": 14,
+          "MRIR No": 14,
+        });
+
+        await downloadExcelWorkbook(wb, `PunchList_CPP_TOPSIDE_Report_${todayStr}.xlsx`);
+        showToast(`Successfully exported ${total.toLocaleString()} Punchlist items to Excel!`, "success");
+        return;
+      }
+
+      if (state.activeTab === "checksheet") {
+        const rows = getFilteredChecksheets();
+        const total = rows.length;
+        const completed = rows.filter((r) => Boolean(resolveCs(r, 6))).length;
+        const remaining = total - completed;
+        const pct = total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
+        const f = state.filters.checksheet;
+        const scopeStr = `System: ${f.system || "ALL"} • SubSystem: ${f.subSystem || "ALL"} • Disc: ${f.discipline || "ALL"} • Group: ${f.itrGroup || "ALL"} • Status: ${f.status || "ALL"}`;
+
+        const ws = wb.addWorksheet("Checksheet Register");
+        applyExcelReportBanner(ws, {
+          subtitle: "PRE-COMMISSIONING CHECKSHEET INSPECTION & COMPLETION REGISTER",
+          metaText: `Report Generated: ${nowStr} | Scope: ${scopeStr} | Total: ${total.toLocaleString()} | Completed: ${completed.toLocaleString()} (${pct}%) | Remaining: ${remaining.toLocaleString()} | Source: PMS Daily Sync`,
+          colCount: 14,
+        });
+
+        const headers = ["No.", "SubSystem No", "SubSystem Description", "Tag No", "Tag Description", "Discipline", "CheckSheet Type", "Status", "Complete Date", "Plan Finish", "Norm (Mhrs)", "Phase", "Location", "SubContractor"];
+        const exportRows = rows.map((r, i) => [
+          i + 1,
+          resolveCs(r, 1),
+          state.data.subsystems[resolveCs(r, 1)] || "",
+          r[2],
+          resolveCs(r, 3),
+          resolveCs(r, 4),
+          resolveCs(r, 5),
+          resolveCs(r, 6) ? "Completed" : "Remaining",
+          resolveCs(r, 6) || "-",
+          resolveCs(r, 7) || "-",
+          r[8] || "",
+          resolveCs(r, 9) || "",
+          resolveCs(r, 10) || "",
+          resolveCs(r, 11) || "",
+        ]);
+
+        styleExcelDataTable(ws, 5, headers, exportRows, {
+          "No.": 8,
+          "SubSystem No": 16,
+          "SubSystem Description": 28,
+          "Tag No": 18,
+          "Tag Description": 30,
+          "Discipline": 15,
+          "CheckSheet Type": 16,
+          "Status": 14,
+          "Complete Date": 15,
+          "Plan Finish": 15,
+          "Norm (Mhrs)": 12,
+          "Phase": 10,
+          "Location": 12,
+          "SubContractor": 15,
+        });
+
+        await downloadExcelWorkbook(wb, `Checksheet_CPP_TOPSIDE_Report_${todayStr}.xlsx`);
+        showToast(`Successfully exported ${total.toLocaleString()} Checksheet items to Excel!`, "success");
+        return;
+      }
+
+      // Detail Tabs (Subsystem Full Detail or Drilldown Detail)
+      const dTab = state.detailTabs.find((t) => t.id === state.activeTab);
+      if (!dTab) return;
+
+      if (dTab.source === "subsystem") {
+        const subNo = dTab.criteria.subSystem;
+        const subDesc = state.data.subsystems[subNo] || "Subsystem Unit";
+        const d = getSubDetailCounts(dTab);
+        const safeSub = subNo.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+        // Sheet 1: Dossier Summary
+        const wsSum = wb.addWorksheet("SubSystem Summary");
+        applyExcelReportBanner(wsSum, {
+          subtitle: `SUBSYSTEM COMPLETION DOSSIER — ${subNo} : ${subDesc}`,
+          metaText: `Report Generated: ${nowStr} | SubSystem: ${subNo} | Overall Progress: ${d.overallPct}% | Total Scope: ${d.overallTotal.toLocaleString()} (${d.overallClosed.toLocaleString()} Closed, ${d.overallTotal - d.overallClosed} Open)`,
+          colCount: 5,
+        });
+
+        const gateHeaders = ["Gate / Item", "Closed / Completed", "Open / Remaining", "Total Scope", "Progress %"];
+        const gateRows = [
+          ["ITR-A (Checksheets)", d.itrA.closed, d.itrA.open, d.itrA.total, `${d.itrA.pct}%`],
+          ["Punch Cat A", d.punchA.closed, d.punchA.open, d.punchA.total, `${d.punchA.pct}%`],
+          ["Punch Cat B", d.punchB.closed, d.punchB.open, d.punchB.total, `${d.punchB.pct}%`],
+          ["Punch Cat C", d.punchC.closed, d.punchC.open, d.punchC.total, `${d.punchC.pct}%`],
+          ["ITR-B (Checksheets)", d.itrB.closed, d.itrB.open, d.itrB.total, `${d.itrB.pct}%`],
+          ["OVERALL TOTAL", d.overallClosed, d.overallTotal - d.overallClosed, d.overallTotal, `${d.overallPct}%`],
+        ];
+        styleExcelDataTable(wsSum, 5, gateHeaders, gateRows, {
+          "Gate / Item": 24,
+          "Closed / Completed": 18,
+          "Open / Remaining": 18,
+          "Total Scope": 16,
+          "Progress %": 16,
+        });
+
+        // Sheet 2: Checksheets
+        const csRows = d.csFiltered || [];
+        const wsCs = wb.addWorksheet("Checksheets");
+        applyExcelReportBanner(wsCs, {
+          subtitle: `SUBSYSTEM ${subNo} — CHECKSHEET REGISTER`,
+          metaText: `Report Generated: ${nowStr} | SubSystem: ${subNo} | Total Checksheets: ${csRows.length.toLocaleString()}`,
+          colCount: 14,
+        });
+        const csHeaders = ["No.", "SubSystem No", "SubSystem Description", "Tag No", "Tag Description", "Discipline", "CheckSheet Type", "Status", "Complete Date", "Plan Finish", "Norm (Mhrs)", "Phase", "Location", "SubContractor"];
+        const csExportRows = csRows.map((r, i) => [
+          i + 1,
+          resolveCs(r, 1),
+          state.data.subsystems[resolveCs(r, 1)] || "",
+          r[2],
+          resolveCs(r, 3),
+          resolveCs(r, 4),
+          resolveCs(r, 5),
+          resolveCs(r, 6) ? "Completed" : "Remaining",
+          resolveCs(r, 6) || "-",
+          resolveCs(r, 7) || "-",
+          r[8] || "",
+          resolveCs(r, 9) || "",
+          resolveCs(r, 10) || "",
+          resolveCs(r, 11) || "",
+        ]);
+        styleExcelDataTable(wsCs, 5, csHeaders, csExportRows, {
+          "No.": 8,
+          "SubSystem No": 16,
+          "SubSystem Description": 28,
+          "Tag No": 18,
+          "Tag Description": 30,
+          "Discipline": 15,
+          "CheckSheet Type": 16,
+          "Status": 14,
+          "Complete Date": 15,
+          "Plan Finish": 15,
+          "Norm (Mhrs)": 12,
+          "Phase": 10,
+          "Location": 12,
+          "SubContractor": 15,
+        });
+
+        // Sheet 3: Punchlist
+        const plRows = d.plFiltered || [];
+        const wsPl = wb.addWorksheet("Punchlist");
+        applyExcelReportBanner(wsPl, {
+          subtitle: `SUBSYSTEM ${subNo} — PUNCHLIST REGISTER`,
+          metaText: `Report Generated: ${nowStr} | SubSystem: ${subNo} | Total Punch Items: ${plRows.length.toLocaleString()}`,
+          colCount: 17,
+        });
+        const plHeaders = ["No.", "System No", "SubSystem No", "PunchList No", "Raised No", "Tag No", "Tag Description", "Category", "Status", "Open Date", "Closed Date", "Discipline", "Defect Description", "Corrective Action", "Target Date", "Action By", "MRIR No"];
+        const plExportRows = plRows.map((r, i) => [
+          i + 1,
+          resolvePl(r, 0),
+          resolvePl(r, 1),
+          r[2],
+          resolvePl(r, 3) || "-",
+          r[5],
+          resolvePl(r, 6),
+          r[8],
+          resolvePl(r, 9) || "Open",
+          resolvePl(r, 10) || "-",
+          resolvePl(r, 11) || "-",
+          resolvePl(r, 15),
+          resolvePl(r, 16),
+          resolvePl(r, 17),
+          resolvePl(r, 21) || "-",
+          resolvePl(r, 12) || "-",
+          resolvePl(r, 13) || "-",
+        ]);
+        styleExcelDataTable(wsPl, 5, plHeaders, plExportRows, {
+          "No.": 8,
+          "System No": 14,
+          "SubSystem No": 16,
+          "PunchList No": 16,
+          "Raised No": 15,
+          "Tag No": 18,
+          "Tag Description": 28,
+          "Category": 10,
+          "Status": 12,
+          "Open Date": 14,
+          "Closed Date": 14,
+          "Discipline": 15,
+          "Defect Description": 42,
+          "Corrective Action": 42,
+          "Target Date": 14,
+          "Action By": 14,
+          "MRIR No": 14,
+        });
+
+        await downloadExcelWorkbook(wb, `SubSystem_${safeSub}_Dossier_Report_${todayStr}.xlsx`);
+        showToast(`Exported ${subNo} Full Detail Dossier (3 sheets) to Excel!`, "success");
+        return;
+      }
+
+      // Gate / Generic Detail tab
+      const isPl = dTab.source === "punchlist";
+      const filtered = getDetailFilteredRows(dTab);
+      const safeTitle = dTab.title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+      const ws = wb.addWorksheet(isPl ? "Punchlist Detail" : "Checksheet Detail");
+
+      applyExcelReportBanner(ws, {
+        subtitle: `DETAIL REPORT — ${dTab.title.toUpperCase()}`,
+        metaText: `Report Generated: ${nowStr} | Total Filtered: ${filtered.length.toLocaleString()} items | Source: PMS Daily Sync`,
+        colCount: isPl ? 17 : 14,
+      });
+
+      if (isPl) {
+        const headers = ["No.", "System No", "SubSystem No", "PunchList No", "Raised No", "Tag No", "Tag Description", "Category", "Status", "Open Date", "Closed Date", "Discipline", "Defect Description", "Corrective Action", "Target Date", "Action By", "MRIR No"];
+        const exportRows = filtered.map((r, i) => [
+          i + 1,
+          resolvePl(r, 0),
+          resolvePl(r, 1),
+          r[2],
+          resolvePl(r, 3) || "-",
+          r[5],
+          resolvePl(r, 6),
+          r[8],
+          resolvePl(r, 9) || "Open",
+          resolvePl(r, 10) || "-",
+          resolvePl(r, 11) || "-",
+          resolvePl(r, 15),
+          resolvePl(r, 16),
+          resolvePl(r, 17),
+          resolvePl(r, 21) || "-",
+          resolvePl(r, 12) || "-",
+          resolvePl(r, 13) || "-",
+        ]);
+        styleExcelDataTable(ws, 5, headers, exportRows, {
+          "No.": 8,
+          "System No": 14,
+          "SubSystem No": 16,
+          "PunchList No": 16,
+          "Raised No": 15,
+          "Tag No": 18,
+          "Tag Description": 28,
+          "Category": 10,
+          "Status": 12,
+          "Open Date": 14,
+          "Closed Date": 14,
+          "Discipline": 15,
+          "Defect Description": 42,
+          "Corrective Action": 42,
+          "Target Date": 14,
+          "Action By": 14,
+          "MRIR No": 14,
+        });
+      } else {
+        const headers = ["No.", "SubSystem No", "SubSystem Description", "Tag No", "Tag Description", "Discipline", "CheckSheet Type", "Status", "Complete Date", "Plan Finish", "Norm (Mhrs)", "Phase", "Location", "SubContractor"];
+        const exportRows = filtered.map((r, i) => [
+          i + 1,
+          resolveCs(r, 1),
+          state.data.subsystems[resolveCs(r, 1)] || "",
+          r[2],
+          resolveCs(r, 3),
+          resolveCs(r, 4),
+          resolveCs(r, 5),
+          resolveCs(r, 6) ? "Completed" : "Remaining",
+          resolveCs(r, 6) || "-",
+          resolveCs(r, 7) || "-",
+          r[8] || "",
+          resolveCs(r, 9) || "",
+          resolveCs(r, 10) || "",
+          resolveCs(r, 11) || "",
+        ]);
+        styleExcelDataTable(ws, 5, headers, exportRows, {
+          "No.": 8,
+          "SubSystem No": 16,
+          "SubSystem Description": 28,
+          "Tag No": 18,
+          "Tag Description": 30,
+          "Discipline": 15,
+          "CheckSheet Type": 16,
+          "Status": 14,
+          "Complete Date": 15,
+          "Plan Finish": 15,
+          "Norm (Mhrs)": 12,
+          "Phase": 10,
+          "Location": 12,
+          "SubContractor": 15,
+        });
+      }
+
+      await downloadExcelWorkbook(wb, `Detail_${safeTitle}_Report_${todayStr}.xlsx`);
+      showToast(`Successfully exported ${filtered.length.toLocaleString()} detail items to Excel!`, "success");
+    } catch (err) {
+      console.error("Excel export error:", err);
+      showToast("Error generating styled Excel report. Falling back to basic export.", "error");
+      exportActiveTabToExcelFallback(todayStr);
+    }
+  };
+
+  function exportActiveTabToExcelFallback(todayStr) {
+    if (!window.XLSX) {
+      alert("Excel export library is loading, please try again in a moment.");
+      return;
+    }
     const wb = XLSX.utils.book_new();
-
-    if (state.activeTab === "overview") {
-      const stats = getOverviewStats();
-      const g = stats.global;
-      const execRows = [
-        { Gate: "ITR-A (Checksheets)", "Closed / Completed": g.itrA.closed, "Open / Remaining": g.itrA.open, Total: g.itrA.total, "% Complete": `${g.itrA.pct}%` },
-        { Gate: "Punch Cat A", "Closed / Completed": g.punchA.closed, "Open / Remaining": g.punchA.open, Total: g.punchA.total, "% Complete": `${g.punchA.pct}%` },
-        { Gate: "Punch Cat B", "Closed / Completed": g.punchB.closed, "Open / Remaining": g.punchB.open, Total: g.punchB.total, "% Complete": `${g.punchB.pct}%` },
-        { Gate: "Punch Cat C", "Closed / Completed": g.punchC.closed, "Open / Remaining": g.punchC.open, Total: g.punchC.total, "% Complete": `${g.punchC.pct}%` },
-        { Gate: "ITR-B (Checksheets)", "Closed / Completed": g.itrB.closed, "Open / Remaining": g.itrB.open, Total: g.itrB.total, "% Complete": `${g.itrB.pct}%` },
-      ];
-      const discRows = stats.byDiscipline.map((d) => ({
-        Discipline: d.discipline,
-        "ITR-A": `${d.itrA.closed}/${d.itrA.total} (${d.itrA.pct}%)`,
-        "Punch Cat A": `${d.punchA.closed}/${d.punchA.total} (${d.punchA.pct}%)`,
-        "Punch Cat B": `${d.punchB.closed}/${d.punchB.total} (${d.punchB.pct}%)`,
-        "Punch Cat C": `${d.punchC.closed}/${d.punchC.total} (${d.punchC.pct}%)`,
-        "ITR-B": `${d.itrB.closed}/${d.itrB.total} (${d.itrB.pct}%)`,
-        "Overall %": `${d.overallPct}%`,
-      }));
-      const subRows = stats.bySubSystem.map((s) => ({
-        SubSystem: s.subSystem,
-        Description: s.description,
-        "ITR-A": `${s.itrA.closed}/${s.itrA.total} (${s.itrA.pct}%)`,
-        "Punch Cat A": `${s.punchA.closed}/${s.punchA.total} (${s.punchA.pct}%)`,
-        "Punch Cat B": `${s.punchB.closed}/${s.punchB.total} (${s.punchB.pct}%)`,
-        "Punch Cat C": `${s.punchC.closed}/${s.punchC.total} (${s.punchC.pct}%)`,
-        "ITR-B": `${s.itrB.closed}/${s.itrB.total} (${s.itrB.pct}%)`,
-        "Overall %": `${s.overallPct}%`,
-      }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(execRows), "Executive Summary");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(discRows), "By Discipline");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(subRows), "By SubSystem");
-      XLSX.writeFile(wb, `CPP_TOPSIDE_Overview_Summary_${todayStr}.xlsx`);
-      showToast("Successfully exported Overview Summary (3 sheets) to Excel!", "success");
-      return;
-    }
-
     let rowsToExport = [];
     let sheetName = "";
     let filename = "";
@@ -5743,27 +6477,8 @@
     } else {
       const dTab = state.detailTabs.find((t) => t.id === state.activeTab);
       if (!dTab) return;
-      if (dTab.source === "subsystem") {
-        const subNo = dTab.criteria.subSystem;
-        const d = getSubDetailCounts(dTab);
-        const sumSheet = [
-          { Gate: "ITR-A", Closed_Completed: d.itrA.closed, Total: d.itrA.total, Progress: `${d.itrA.pct}%` },
-          { Gate: "Punch Cat A", Closed_Completed: d.punchA.closed, Total: d.punchA.total, Progress: `${d.punchA.pct}%` },
-          { Gate: "Punch Cat B", Closed_Completed: d.punchB.closed, Total: d.punchB.total, Progress: `${d.punchB.pct}%` },
-          { Gate: "Punch Cat C", Closed_Completed: d.punchC.closed, Total: d.punchC.total, Progress: `${d.punchC.pct}%` },
-          { Gate: "ITR-B", Closed_Completed: d.itrB.closed, Total: d.itrB.total, Progress: `${d.itrB.pct}%` },
-          { Gate: "OVERALL", Closed_Completed: d.overallClosed, Total: d.overallTotal, Progress: `${d.overallPct}%` },
-        ];
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sumSheet), "SubSystem Summary");
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapPunchRowsForExport(d.plFiltered)), "Punchlist");
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapCsRowsForExport(d.csFiltered)), "Checksheets");
-        const safeSub = subNo.replace(/[^a-zA-Z0-9_-]/g, "_");
-        XLSX.writeFile(wb, `SubSystem_${safeSub}_FullDetail_${todayStr}.xlsx`);
-        showToast(`Exported ${subNo} Full Detail (3 sheets) to Excel!`, "success");
-        return;
-      }
-      const filtered = getDetailFilteredRows(dTab);
       const isPl = dTab.source === "punchlist";
+      const filtered = getDetailFilteredRows(dTab);
       rowsToExport = isPl ? mapPunchRowsForExport(filtered) : mapCsRowsForExport(filtered);
       sheetName = isPl ? "Punchlist Detail" : "Checksheet Detail";
       const safeTitle = dTab.title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
@@ -5774,128 +6489,561 @@
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, filename);
     showToast(`Successfully exported ${rowsToExport.length.toLocaleString()} rows to Excel!`, "success");
-  };
+  }
 
-  // --- Export to PDF ---
+  // --- Export to PDF (Professional Corporate Report Layout via jsPDF + autoTable) ---
   window.exportActiveTabToPDF = function () {
-    if (!window.jspdf) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
       alert("PDF library is loading, please try again in a moment.");
       return;
     }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF("l", "mm", "a4");
-
-    if (state.activeTab === "overview") {
-      const stats = getOverviewStats();
-      doc.setFontSize(14);
-      doc.text("CPP TOPSIDE - Executive Pre-Commissioning & Punchlist Overview", 14, 15);
-      doc.setFontSize(9);
-      doc.text(`Export Date: ${new Date().toLocaleString()} | Scope: ${state.overviewFilters.system}`, 14, 21);
-
-      const discBody = stats.byDiscipline.map((d) => [
-        d.discipline,
-        `${d.itrA.closed}/${d.itrA.total} (${d.itrA.pct}%)`,
-        `${d.punchA.closed}/${d.punchA.total} (${d.punchA.pct}%)`,
-        `${d.punchB.closed}/${d.punchB.total} (${d.punchB.pct}%)`,
-        `${d.punchC.closed}/${d.punchC.total} (${d.punchC.pct}%)`,
-        `${d.itrB.closed}/${d.itrB.total} (${d.itrB.pct}%)`,
-        `${d.overallPct}%`,
-      ]);
-      doc.autoTable({
-        startY: 26,
-        head: [["Discipline", "ITR-A", "Punch Cat A", "Punch Cat B", "Punch Cat C", "ITR-B", "Overall %"]],
-        body: discBody,
-        styles: { fontSize: 8 },
-      });
-      doc.save("CPP_TOPSIDE_Overview_Report.pdf");
-      showToast("Successfully exported Overview PDF report!", "success");
+    if (!state.data) {
+      alert("Project data is not yet loaded.");
       return;
     }
 
-    let isPl = state.activeTab === "punchlist";
-    let filtered = [];
-    let reportTitle = "";
+    const { fullStr: nowStr, isoDate: todayStr } = getReportTimestamp();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-    if (state.activeTab === "punchlist") {
-      filtered = getFilteredPunchlist();
-      reportTitle = "CPP TOPSIDE - Punchlist Overview";
-    } else if (state.activeTab === "checksheet") {
-      filtered = getFilteredChecksheets();
-      reportTitle = "CPP TOPSIDE - Checksheet Overview";
-    } else {
-      const dTab = state.detailTabs.find((t) => t.id === state.activeTab);
-      if (!dTab) return;
-      if (dTab.source === "subsystem") {
-        const subNo = dTab.criteria.subSystem;
-        const d = getSubDetailCounts(dTab);
-        doc.setFontSize(14);
-        doc.text(`CPP TOPSIDE - SubSystem Full Detail: ${subNo}`, 14, 15);
-        doc.setFontSize(9);
-        doc.text(`Export Date: ${new Date().toLocaleString()} | Overall: ${d.overallClosed}/${d.overallTotal} (${d.overallPct}%)`, 14, 21);
-        doc.autoTable({
-          startY: 25,
-          head: [["Gate", "Closed / Completed", "Open / Remaining", "Total", "Progress %"]],
-          body: [
-            ["ITR-A", d.itrA.closed, d.itrA.open, d.itrA.total, `${d.itrA.pct}%`],
-            ["Punch Cat A", d.punchA.closed, d.punchA.open, d.punchA.total, `${d.punchA.pct}%`],
-            ["Punch Cat B", d.punchB.closed, d.punchB.open, d.punchB.total, `${d.punchB.pct}%`],
-            ["Punch Cat C", d.punchC.closed, d.punchC.open, d.punchC.total, `${d.punchC.pct}%`],
-            ["ITR-B", d.itrB.closed, d.itrB.open, d.itrB.total, `${d.itrB.pct}%`],
-          ],
-          styles: { fontSize: 8 },
-        });
-        doc.save(`SubSystem_${subNo.replace(/[^a-zA-Z0-9_-]/g, "_")}_Report.pdf`);
-        showToast(`Exported ${subNo} Summary PDF report!`, "success");
-        return;
-      }
-      isPl = dTab.source === "punchlist";
-      filtered = getDetailFilteredRows(dTab);
-      reportTitle = `CPP TOPSIDE Detail - ${dTab.title}`;
+    function drawPdfPageHeader(docRef, title, subtitle) {
+      docRef.setFillColor(15, 23, 42); // Corporate Navy
+      docRef.rect(14, 10, 269, 17, "F");
+
+      // Gold accent bar
+      docRef.setFillColor(217, 119, 6);
+      docRef.rect(14, 10, 3, 17, "F");
+
+      docRef.setFont("helvetica", "bold");
+      docRef.setFontSize(11);
+      docRef.setTextColor(255, 255, 255);
+      docRef.text("VIETNAM BLOCK B GAS DEVELOPMENT PROJECT • EPC#1 CPP TOPSIDE", 21, 17);
+
+      docRef.setFont("helvetica", "normal");
+      docRef.setFontSize(7.5);
+      docRef.setTextColor(203, 213, 225);
+      docRef.text(subtitle || "PRE-COMMISSIONING & COMMISSIONING MANAGEMENT SYSTEM • OFFICIAL REPORT", 21, 23);
     }
 
-    doc.setFontSize(14);
-    doc.text(reportTitle, 14, 15);
-    doc.setFontSize(9);
-    doc.text(`Export Date: ${new Date().toLocaleString()} | Total items: ${filtered.length}`, 14, 21);
+    function drawPdfMetaBlock(docRef, reportTitle, metaText, stats = null) {
+      docRef.setFont("helvetica", "bold");
+      docRef.setFontSize(11);
+      docRef.setTextColor(15, 23, 42);
+      docRef.text(reportTitle, 14, 33);
 
-    if (isPl) {
-      const rows = filtered.slice(0, 100).map((r, i) => [
+      docRef.setFont("helvetica", "normal");
+      docRef.setFontSize(7.5);
+      docRef.setTextColor(100, 116, 139);
+      docRef.text(metaText, 14, 38);
+
+      if (stats) {
+        const chips = [
+          { label: "TOTAL SCOPE", val: stats.total.toLocaleString(), bg: [241, 245, 249], tc: [15, 23, 42] },
+          { label: stats.closedLabel || "CLOSED / COMP", val: stats.closed.toLocaleString(), bg: [220, 252, 231], tc: [22, 101, 52] },
+          { label: stats.openLabel || "OPEN / REM", val: stats.open.toLocaleString(), bg: [254, 226, 226], tc: [159, 18, 57] },
+          { label: "PROGRESS %", val: `${stats.pct}%`, bg: [238, 242, 255], tc: [67, 56, 202] },
+        ];
+        const startX = 160;
+        const chipW = 29;
+        chips.forEach((c, i) => {
+          const x = startX + i * (chipW + 2);
+          docRef.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+          docRef.roundedRect(x, 28.5, chipW, 11.5, 1.5, 1.5, "F");
+          docRef.setFont("helvetica", "bold");
+          docRef.setFontSize(5.5);
+          docRef.setTextColor(c.tc[0], c.tc[1], c.tc[2]);
+          docRef.text(c.label, x + chipW / 2, 32.5, { align: "center" });
+          docRef.setFontSize(8);
+          docRef.text(c.val, x + chipW / 2, 37.5, { align: "center" });
+        });
+      }
+    }
+
+    function applyPdfFootersAndHeaders(docRef, mainTitle) {
+      const totalPages = docRef.internal.getNumberOfPages();
+      for (let pNum = 1; pNum <= totalPages; pNum++) {
+        docRef.setPage(pNum);
+
+        // Header on subsequent pages
+        if (pNum > 1) {
+          docRef.setFillColor(15, 23, 42);
+          docRef.rect(14, 8, 269, 8, "F");
+          docRef.setFont("helvetica", "bold");
+          docRef.setFontSize(7.5);
+          docRef.setTextColor(255, 255, 255);
+          docRef.text(`VIETNAM BLOCK B GAS PROJECT • EPC#1 CPP TOPSIDE — ${mainTitle}`, 18, 13.5);
+        }
+
+        // Footer dividing line
+        docRef.setDrawColor(226, 232, 240);
+        docRef.setLineWidth(0.2);
+        docRef.line(14, 200, 283, 200);
+
+        // 3-section footer
+        docRef.setFont("helvetica", "normal");
+        docRef.setFontSize(6.5);
+        docRef.setTextColor(148, 163, 184);
+        docRef.text("Vietnam Block B Gas Project • EPC#1 • CPP TOPSIDE — Pre-Commissioning & Commissioning Management System", 14, 204);
+        docRef.text("CONFIDENTIAL & PROPRIETARY — FOR PROJECT USE ONLY", 148, 204, { align: "center" });
+        docRef.text(`Page ${pNum} of ${totalPages} | Generated: ${nowStr}`, 283, 204, { align: "right" });
+      }
+    }
+
+    if (state.activeTab === "overview") {
+      const stats = getOverviewStats();
+      const g = stats.global;
+      const totAll = g.itrA.total + g.punchA.total + g.punchB.total + g.punchC.total + g.itrB.total;
+      const totClosed = g.itrA.closed + g.punchA.closed + g.punchB.closed + g.punchC.closed + g.itrB.closed;
+      const totOpen = g.itrA.open + g.punchA.open + g.punchB.open + g.punchC.open + g.itrB.open;
+      const totPct = totAll > 0 ? ((totClosed / totAll) * 100).toFixed(1) : "0.0";
+      const sysFilter = state.overviewFilters.system || "ALL";
+
+      drawPdfPageHeader(doc, "Overview", "EXECUTIVE PRE-COMMISSIONING & PUNCHLIST STATUS REPORT");
+      drawPdfMetaBlock(
+        doc,
+        "Executive Pre-Commissioning & Punchlist Progress Report",
+        `Scope: System ${sysFilter} | Data Source: PMS Daily Sync | Total Scope: ${totAll.toLocaleString()} items`,
+        { total: totAll, closed: totClosed, open: totOpen, pct: totPct, closedLabel: "CLOSED/COMP", openLabel: "OPEN/REM" }
+      );
+
+      // Gate KPI Table
+      const gateBody = [
+        ["ITR-A (Checksheets)", g.itrA.closed, g.itrA.open, g.itrA.total, `${g.itrA.pct}%`],
+        ["Punch Cat A", g.punchA.closed, g.punchA.open, g.punchA.total, `${g.punchA.pct}%`],
+        ["Punch Cat B", g.punchB.closed, g.punchB.open, g.punchB.total, `${g.punchB.pct}%`],
+        ["Punch Cat C", g.punchC.closed, g.punchC.open, g.punchC.total, `${g.punchC.pct}%`],
+        ["ITR-B (Checksheets)", g.itrB.closed, g.itrB.open, g.itrB.total, `${g.itrB.pct}%`],
+        ["TOTAL PRE-COMMISSIONING", totClosed, totOpen, totAll, `${totPct}%`],
+      ];
+
+      doc.autoTable({
+        startY: 44,
+        head: [["Gate / Milestone", "Closed / Completed", "Open / Remaining", "Total Scope", "Progress %"]],
+        body: gateBody,
+        theme: "grid",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 7, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { fontStyle: "bold" },
+          1: { halign: "center", fontStyle: "bold", textColor: [22, 101, 52] },
+          2: { halign: "center", fontStyle: "bold", textColor: [159, 18, 57] },
+          3: { halign: "center", fontStyle: "bold" },
+          4: { halign: "center", fontStyle: "bold" },
+        },
+      });
+
+      const nextY = doc.lastAutoTable.finalY + 8;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text("Discipline Closure Summary (ITR-A/B & Punch Cat A/B/C)", 14, nextY);
+
+      const discBody = stats.byDiscipline.map((d) => [
+        d.discipline,
+        `${d.itrA.closed} / ${d.itrA.total} (${d.itrA.pct}%)`,
+        `${d.punchA.closed} / ${d.punchA.total} (${d.punchA.pct}%)`,
+        `${d.punchB.closed} / ${d.punchB.total} (${d.punchB.pct}%)`,
+        `${d.punchC.closed} / ${d.punchC.total} (${d.punchC.pct}%)`,
+        `${d.itrB.closed} / ${d.itrB.total} (${d.itrB.pct}%)`,
+        `${d.overallPct}% (${d.overallClosed}/${d.overallTotal})`,
+      ]);
+
+      doc.autoTable({
+        startY: nextY + 3,
+        head: [["Discipline", "ITR-A (Comp/Total)", "Punch A (Cls/Total)", "Punch B (Cls/Total)", "Punch C (Cls/Total)", "ITR-B (Comp/Total)", "Overall Progress %"]],
+        body: discBody,
+        theme: "grid",
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 6.8, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 6.8, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { fontStyle: "bold" },
+          1: { halign: "center" },
+          2: { halign: "center" },
+          3: { halign: "center" },
+          4: { halign: "center" },
+          5: { halign: "center" },
+          6: { halign: "center", fontStyle: "bold" },
+        },
+      });
+
+      applyPdfFootersAndHeaders(doc, "Executive Overview");
+      doc.save(`CPP_TOPSIDE_Executive_Report_${todayStr}.pdf`);
+      showToast("Successfully exported Executive Overview PDF report!", "success");
+      return;
+    }
+
+    if (state.activeTab === "punchlist") {
+      const rows = getFilteredPunchlist();
+      const total = rows.length;
+      const closed = rows.filter((r) => (resolvePl(r, 9) || "Open") === "Closed").length;
+      const open = total - closed;
+      const pct = total > 0 ? ((closed / total) * 100).toFixed(1) : "0.0";
+      const f = state.filters.punchlist;
+      const scopeStr = `System: ${f.system || "ALL"} • SubSystem: ${f.subSystem || "ALL"} • Disc: ${f.discipline || "ALL"} • Cat: ${f.category || "ALL"} • Status: ${f.status || "ALL"}`;
+
+      drawPdfPageHeader(doc, "Punchlist", "PUNCHLIST MASTER CLEARANCE & DEFECT REGISTER");
+      const pdfLimit = 350;
+      const isTruncated = total > pdfLimit;
+      const noteStr = isTruncated ? ` (Showing top ${pdfLimit} of ${total.toLocaleString()} rows — Export to Excel for full register)` : "";
+      drawPdfMetaBlock(
+        doc,
+        `Punchlist Master Defect Register${noteStr}`,
+        `Scope: ${scopeStr} | Source: PMS Daily Sync`,
+        { total, closed, open, pct, closedLabel: "CLOSED ITEMS", openLabel: "OPEN ITEMS" }
+      );
+
+      const tableRows = rows.slice(0, pdfLimit).map((r, i) => [
         i + 1,
+        resolvePl(r, 0),
+        resolvePl(r, 1),
         r[2],
         resolvePl(r, 3) || "-",
-        resolvePl(r, 1),
         r[5],
         r[8],
-        resolvePl(r, 9),
+        resolvePl(r, 9) || "Open",
         resolvePl(r, 15),
-        (resolvePl(r, 16) || "").slice(0, 50),
+        resolvePl(r, 21) || "-",
+        (resolvePl(r, 16) || "").slice(0, 55),
       ]);
+
       doc.autoTable({
-        startY: 25,
-        head: [["#", "PL No", "Raised No", "SubSystem", "Tag No", "Cat", "Status", "Disc", "Defect"]],
-        body: rows,
-        styles: { fontSize: 8 },
+        startY: 45,
+        head: [["#", "System", "SubSystem", "PL No", "Raised No", "Tag No", "Cat", "Status", "Disc", "Target Date", "Defect Description"]],
+        body: tableRows,
+        theme: "grid",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 6.8, cellPadding: 1.8 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 6.5, cellPadding: 1.5, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 8 },
+          1: { halign: "center", cellWidth: 16 },
+          2: { halign: "center", cellWidth: 18 },
+          3: { halign: "center", cellWidth: 18 },
+          4: { halign: "center", cellWidth: 18 },
+          5: { halign: "center", cellWidth: 24 },
+          6: { halign: "center", cellWidth: 10, fontStyle: "bold" },
+          7: { halign: "center", cellWidth: 16, fontStyle: "bold" },
+          8: { halign: "center", cellWidth: 18 },
+          9: { halign: "center", cellWidth: 18 },
+          10: { halign: "left" },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body") {
+            if (data.column.index === 7) {
+              const sVal = String(data.cell.raw || "").trim();
+              if (sVal === "Closed") {
+                data.cell.styles.fillColor = [220, 252, 231];
+                data.cell.styles.textColor = [22, 101, 52];
+              } else {
+                data.cell.styles.fillColor = [254, 226, 226];
+                data.cell.styles.textColor = [159, 18, 57];
+              }
+            } else if (data.column.index === 6) {
+              const cVal = String(data.cell.raw || "").trim().toUpperCase();
+              if (cVal === "A") data.cell.styles.textColor = [220, 38, 38];
+              else if (cVal === "B") data.cell.styles.textColor = [217, 119, 6];
+              else if (cVal === "C") data.cell.styles.textColor = [37, 99, 235];
+            }
+          }
+        },
       });
-    } else {
-      const rows = filtered.slice(0, 100).map((r, i) => [
+
+      applyPdfFootersAndHeaders(doc, "Punchlist Register");
+      doc.save(`PunchList_CPP_TOPSIDE_Report_${todayStr}.pdf`);
+      showToast(`Successfully exported Punchlist PDF report (${tableRows.length.toLocaleString()} rows)!`, "success");
+      return;
+    }
+
+    if (state.activeTab === "checksheet") {
+      const rows = getFilteredChecksheets();
+      const total = rows.length;
+      const completed = rows.filter((r) => Boolean(resolveCs(r, 6))).length;
+      const remaining = total - completed;
+      const pct = total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
+      const f = state.filters.checksheet;
+      const scopeStr = `System: ${f.system || "ALL"} • SubSystem: ${f.subSystem || "ALL"} • Disc: ${f.discipline || "ALL"} • Group: ${f.itrGroup || "ALL"} • Status: ${f.status || "ALL"}`;
+
+      drawPdfPageHeader(doc, "Checksheet", "PRE-COMMISSIONING CHECKSHEET MASTER REGISTER");
+      const pdfLimit = 350;
+      const isTruncated = total > pdfLimit;
+      const noteStr = isTruncated ? ` (Showing top ${pdfLimit} of ${total.toLocaleString()} rows — Export to Excel for full register)` : "";
+      drawPdfMetaBlock(
+        doc,
+        `Checksheet Inspection Register${noteStr}`,
+        `Scope: ${scopeStr} | Source: PMS Daily Sync`,
+        { total, closed: completed, open: remaining, pct, closedLabel: "COMPLETED", openLabel: "REMAINING" }
+      );
+
+      const tableRows = rows.slice(0, pdfLimit).map((r, i) => [
         i + 1,
         resolveCs(r, 1),
+        (state.data.subsystems[resolveCs(r, 1)] || "").slice(0, 30),
         r[2],
         resolveCs(r, 4),
         resolveCs(r, 5),
         resolveCs(r, 6) ? "Completed" : "Remaining",
         resolveCs(r, 6) || "-",
+        resolveCs(r, 7) || "-",
       ]);
+
       doc.autoTable({
-        startY: 25,
-        head: [["#", "SubSystem", "Tag No", "Disc", "Type", "Status", "Complete Date"]],
-        body: rows,
-        styles: { fontSize: 8 },
+        startY: 45,
+        head: [["#", "SubSystem No", "SubSystem Description", "Tag No", "Disc", "Type", "Status", "Complete Date", "Plan Finish"]],
+        body: tableRows,
+        theme: "grid",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 6.8, cellPadding: 1.8 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 6.5, cellPadding: 1.5, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 8 },
+          1: { halign: "center", cellWidth: 22 },
+          2: { halign: "left", cellWidth: 46 },
+          3: { halign: "center", cellWidth: 32 },
+          4: { halign: "center", cellWidth: 20 },
+          5: { halign: "center", cellWidth: 20 },
+          6: { halign: "center", cellWidth: 22, fontStyle: "bold" },
+          7: { halign: "center", cellWidth: 22 },
+          8: { halign: "center", cellWidth: 22 },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 6) {
+            const sVal = String(data.cell.raw || "").trim();
+            if (sVal === "Completed") {
+              data.cell.styles.fillColor = [220, 252, 231];
+              data.cell.styles.textColor = [22, 101, 52];
+            } else {
+              data.cell.styles.fillColor = [254, 226, 226];
+              data.cell.styles.textColor = [159, 18, 57];
+            }
+          }
+        },
+      });
+
+      applyPdfFootersAndHeaders(doc, "Checksheet Register");
+      doc.save(`Checksheet_CPP_TOPSIDE_Report_${todayStr}.pdf`);
+      showToast(`Successfully exported Checksheet PDF report (${tableRows.length.toLocaleString()} rows)!`, "success");
+      return;
+    }
+
+    // Detail Tabs
+    const dTab = state.detailTabs.find((t) => t.id === state.activeTab);
+    if (!dTab) return;
+
+    if (dTab.source === "subsystem") {
+      const subNo = dTab.criteria.subSystem;
+      const subDesc = state.data.subsystems[subNo] || "Subsystem Unit";
+      const d = getSubDetailCounts(dTab);
+      const safeSub = subNo.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+      drawPdfPageHeader(doc, "SubSystem Detail", `SUBSYSTEM COMPLETION DOSSIER — ${subNo}`);
+      drawPdfMetaBlock(
+        doc,
+        `SubSystem Dossier: ${subNo} — ${subDesc}`,
+        `Overall Progress: ${d.overallPct}% | Source: PMS Daily Sync`,
+        { total: d.overallTotal, closed: d.overallClosed, open: d.overallTotal - d.overallClosed, pct: d.overallPct, closedLabel: "COMPLETED/CLS", openLabel: "REMAINING/OPN" }
+      );
+
+      const gateRows = [
+        ["ITR-A (Checksheets)", d.itrA.closed, d.itrA.open, d.itrA.total, `${d.itrA.pct}%`],
+        ["Punch Cat A", d.punchA.closed, d.punchA.open, d.punchA.total, `${d.punchA.pct}%`],
+        ["Punch Cat B", d.punchB.closed, d.punchB.open, d.punchB.total, `${d.punchB.pct}%`],
+        ["Punch Cat C", d.punchC.closed, d.punchC.open, d.punchC.total, `${d.punchC.pct}%`],
+        ["ITR-B (Checksheets)", d.itrB.closed, d.itrB.open, d.itrB.total, `${d.itrB.pct}%`],
+        ["OVERALL TOTAL", d.overallClosed, d.overallTotal - d.overallClosed, d.overallTotal, `${d.overallPct}%`],
+      ];
+
+      doc.autoTable({
+        startY: 45,
+        head: [["Gate / Milestone", "Closed / Completed", "Open / Remaining", "Total Scope", "Progress %"]],
+        body: gateRows,
+        theme: "grid",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 7, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { fontStyle: "bold" },
+          1: { halign: "center", fontStyle: "bold", textColor: [22, 101, 52] },
+          2: { halign: "center", fontStyle: "bold", textColor: [159, 18, 57] },
+          3: { halign: "center", fontStyle: "bold" },
+          4: { halign: "center", fontStyle: "bold" },
+        },
+      });
+
+      // Append top checksheets & punchlist for this subsystem
+      const nextY = doc.lastAutoTable.finalY + 8;
+      const csRows = (d.csFiltered || []).slice(0, 150).map((r, i) => [
+        i + 1,
+        r[2],
+        resolveCs(r, 4),
+        resolveCs(r, 5),
+        resolveCs(r, 6) ? "Completed" : "Remaining",
+        resolveCs(r, 6) || "-",
+        resolveCs(r, 7) || "-",
+      ]);
+
+      if (csRows.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Checksheets for ${subNo} (${csRows.length} items)`, 14, nextY);
+
+        doc.autoTable({
+          startY: nextY + 3,
+          head: [["#", "Tag No", "Discipline", "Type", "Status", "Complete Date", "Plan Finish"]],
+          body: csRows,
+          theme: "grid",
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 6.8, cellPadding: 1.8 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          bodyStyles: { textColor: [30, 41, 59], fontSize: 6.5, cellPadding: 1.5, lineColor: [226, 232, 240], lineWidth: 0.1 },
+          columnStyles: {
+            0: { halign: "center", cellWidth: 8 },
+            1: { halign: "center", cellWidth: 32 },
+            2: { halign: "center", cellWidth: 24 },
+            3: { halign: "center", cellWidth: 24 },
+            4: { halign: "center", cellWidth: 24, fontStyle: "bold" },
+            5: { halign: "center", cellWidth: 24 },
+            6: { halign: "center", cellWidth: 24 },
+          },
+          didParseCell: (data) => {
+            if (data.section === "body" && data.column.index === 4) {
+              const sVal = String(data.cell.raw || "").trim();
+              if (sVal === "Completed") {
+                data.cell.styles.fillColor = [220, 252, 231];
+                data.cell.styles.textColor = [22, 101, 52];
+              } else {
+                data.cell.styles.fillColor = [254, 226, 226];
+                data.cell.styles.textColor = [159, 18, 57];
+              }
+            }
+          },
+        });
+      }
+
+      applyPdfFootersAndHeaders(doc, `SubSystem ${subNo}`);
+      doc.save(`SubSystem_${safeSub}_Report_${todayStr}.pdf`);
+      showToast(`Exported ${subNo} Dossier PDF report!`, "success");
+      return;
+    }
+
+    // Generic Drilldown Detail Tab
+    const isPl = dTab.source === "punchlist";
+    const filtered = getDetailFilteredRows(dTab);
+    const total = filtered.length;
+    const closed = isPl
+      ? filtered.filter((r) => (resolvePl(r, 9) || "Open") === "Closed").length
+      : filtered.filter((r) => Boolean(resolveCs(r, 6))).length;
+    const open = total - closed;
+    const pct = total > 0 ? ((closed / total) * 100).toFixed(1) : "0.0";
+    const safeTitle = dTab.title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+
+    drawPdfPageHeader(doc, "Detail", `CPP TOPSIDE DETAIL — ${dTab.title.toUpperCase()}`);
+    const pdfLimit = 350;
+    const isTruncated = total > pdfLimit;
+    const noteStr = isTruncated ? ` (Showing top ${pdfLimit} of ${total.toLocaleString()} rows)` : "";
+    drawPdfMetaBlock(
+      doc,
+      `${dTab.title}${noteStr}`,
+      `Generated: ${nowStr} | Source: PMS Daily Sync`,
+      { total, closed, open, pct, closedLabel: isPl ? "CLOSED ITEMS" : "COMPLETED", openLabel: isPl ? "OPEN ITEMS" : "REMAINING" }
+    );
+
+    if (isPl) {
+      const tableRows = filtered.slice(0, pdfLimit).map((r, i) => [
+        i + 1,
+        resolvePl(r, 1),
+        r[2],
+        r[5],
+        r[8],
+        resolvePl(r, 9) || "Open",
+        resolvePl(r, 15),
+        resolvePl(r, 21) || "-",
+        (resolvePl(r, 16) || "").slice(0, 60),
+      ]);
+
+      doc.autoTable({
+        startY: 45,
+        head: [["#", "SubSystem", "PL No", "Tag No", "Cat", "Status", "Disc", "Target Date", "Defect Description"]],
+        body: tableRows,
+        theme: "grid",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 6.8, cellPadding: 1.8 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 6.5, cellPadding: 1.5, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 8 },
+          1: { halign: "center", cellWidth: 20 },
+          2: { halign: "center", cellWidth: 20 },
+          3: { halign: "center", cellWidth: 28 },
+          4: { halign: "center", cellWidth: 10, fontStyle: "bold" },
+          5: { halign: "center", cellWidth: 18, fontStyle: "bold" },
+          6: { halign: "center", cellWidth: 20 },
+          7: { halign: "center", cellWidth: 20 },
+          8: { halign: "left" },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 5) {
+            const sVal = String(data.cell.raw || "").trim();
+            if (sVal === "Closed") {
+              data.cell.styles.fillColor = [220, 252, 231];
+              data.cell.styles.textColor = [22, 101, 52];
+            } else {
+              data.cell.styles.fillColor = [254, 226, 226];
+              data.cell.styles.textColor = [159, 18, 57];
+            }
+          }
+        },
+      });
+    } else {
+      const tableRows = filtered.slice(0, pdfLimit).map((r, i) => [
+        i + 1,
+        resolveCs(r, 1),
+        (state.data.subsystems[resolveCs(r, 1)] || "").slice(0, 30),
+        r[2],
+        resolveCs(r, 4),
+        resolveCs(r, 5),
+        resolveCs(r, 6) ? "Completed" : "Remaining",
+        resolveCs(r, 6) || "-",
+        resolveCs(r, 7) || "-",
+      ]);
+
+      doc.autoTable({
+        startY: 45,
+        head: [["#", "SubSystem No", "SubSystem Description", "Tag No", "Disc", "Type", "Status", "Complete Date", "Plan Finish"]],
+        body: tableRows,
+        theme: "grid",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 6.8, cellPadding: 1.8 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        bodyStyles: { textColor: [30, 41, 59], fontSize: 6.5, cellPadding: 1.5, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 8 },
+          1: { halign: "center", cellWidth: 22 },
+          2: { halign: "left", cellWidth: 46 },
+          3: { halign: "center", cellWidth: 32 },
+          4: { halign: "center", cellWidth: 20 },
+          5: { halign: "center", cellWidth: 20 },
+          6: { halign: "center", cellWidth: 22, fontStyle: "bold" },
+          7: { halign: "center", cellWidth: 22 },
+          8: { halign: "center", cellWidth: 22 },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 6) {
+            const sVal = String(data.cell.raw || "").trim();
+            if (sVal === "Completed") {
+              data.cell.styles.fillColor = [220, 252, 231];
+              data.cell.styles.textColor = [22, 101, 52];
+            } else {
+              data.cell.styles.fillColor = [254, 226, 226];
+              data.cell.styles.textColor = [159, 18, 57];
+            }
+          }
+        },
       });
     }
 
-    doc.save(`${isPl ? "Punchlist" : "Checksheet"}_CPP_TOPSIDE_Report.pdf`);
-    showToast("Successfully exported PDF report (first 100 rows)!", "success");
+    applyPdfFootersAndHeaders(doc, dTab.title);
+    doc.save(`Detail_${safeTitle}_Report_${todayStr}.pdf`);
+    showToast(`Successfully exported PDF report (${filtered.length.toLocaleString()} rows)!`, "success");
   };
 
   // --- Modals ---
