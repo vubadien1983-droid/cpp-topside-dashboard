@@ -1907,6 +1907,7 @@
     const isActCell = isActGate && isActDisc;
     const isClosedAct = isActCell && (opts.activeStatus === "Closed" || opts.activeStatus === "Completed");
     const isOpenAct = isActCell && (opts.activeStatus === "Open" || opts.activeStatus === "Remaining");
+    const isAllAct = isActCell && opts.activeStatus === "ALL";
 
     const cellBg = isActCell ? "bg-amber-50/90 ring-1 ring-amber-400" : "";
 
@@ -1916,23 +1917,36 @@
           <button
             type="button"
             onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'Closed')"
-            class="px-1 py-0.5 rounded font-black text-emerald-700 hover:bg-emerald-100 hover:scale-105 cursor-pointer transition-all ${isClosedAct ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm' : ''}"
-            title="Click to view Closed/Completed items (${disc} • ${gateKey})"
+            class="px-1.5 py-0.5 rounded font-black text-emerald-700 hover:bg-emerald-100 hover:scale-105 cursor-pointer transition-all ${isClosedAct ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm' : ''}"
+            title="Click to view Closed/Completed items (${b.closed.toLocaleString()}) for ${disc} • ${gateKey}"
           >${b.closed.toLocaleString()}</button>
           <span class="text-slate-300 font-semibold select-none">/</span>
           <button
             type="button"
-            onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'Open')"
-            class="px-1 py-0.5 rounded font-bold ${b.open > 0 ? (isOpenAct ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm' : 'text-rose-600 hover:bg-rose-100') : 'text-slate-400 hover:bg-slate-100'} hover:scale-105 cursor-pointer transition-all"
-            title="Click to view Open/Remaining items (${disc} • ${gateKey})"
-          >${b.open.toLocaleString()}</button>
+            onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'ALL')"
+            class="px-1.5 py-0.5 rounded font-bold text-slate-700 hover:bg-slate-200 hover:scale-105 cursor-pointer transition-all ${isAllAct ? 'bg-slate-700 text-white hover:bg-slate-800 shadow-sm' : ''}"
+            title="Click to view all items (${b.total.toLocaleString()}) for ${disc} • ${gateKey}"
+          >${b.total.toLocaleString()}</button>
         </div>
-        <button
-          type="button"
-          onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'ALL')"
-          class="block w-full text-xs font-bold text-slate-500 hover:text-blue-700 hover:underline cursor-pointer mt-0.5 ${isActCell && opts.activeStatus === 'ALL' ? 'text-blue-700 font-black' : ''}"
-          title="Click to view all items (${(b.closed + b.open).toLocaleString()}) for ${disc} • ${gateKey}"
-        >${b.pct}%</button>
+        <div class="inline-flex items-center justify-center gap-1 text-[11px] font-bold mt-0.5">
+          <button
+            type="button"
+            onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'ALL')"
+            class="text-slate-500 hover:text-blue-700 hover:underline cursor-pointer transition-colors ${isAllAct ? 'text-blue-700 font-black' : ''}"
+            title="Click to view all items (${b.total.toLocaleString()}) for ${disc} • ${gateKey}"
+          >${b.pct}%</button>
+          <span class="text-slate-300 select-none">•</span>
+          ${
+            b.open > 0
+              ? `<button
+                  type="button"
+                  onclick="onDisciplineSummaryCellClick('${ctx}', '${tid}', '${esc(disc)}', '${gateKey}', 'Open')"
+                  class="px-1 py-0.2 rounded font-bold ${isOpenAct ? 'bg-rose-600 text-white font-black hover:bg-rose-700 shadow-sm' : 'text-rose-600 hover:bg-rose-100'} hover:scale-105 cursor-pointer transition-all"
+                  title="Click to view Open/Remaining items (${b.open.toLocaleString()}) for ${disc} • ${gateKey}"
+                >Rem: ${b.open.toLocaleString()}</button>`
+              : `<span class="text-[10px] text-emerald-600 font-bold">Done</span>`
+          }
+        </div>
       </td>
     `;
   }
@@ -1972,7 +1986,7 @@
             ${opts.scopeLabel ? `<span class="text-xs text-slate-500 font-medium">(${esc(opts.scopeLabel)})</span>` : ""}
           </div>
           <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <span><strong class="text-emerald-700 font-bold">Closed</strong> / <strong class="text-rose-600 font-bold">Open</strong></span>
+            <span><strong class="text-emerald-700 font-bold">Closed</strong> / <strong class="text-slate-700 font-bold">Total</strong> • <strong class="text-rose-600 font-bold">Rem</strong></span>
             <span class="text-blue-600 font-bold hidden sm:inline"><i class="fas fa-hand-pointer mr-1"></i>Click numbers to filter detail</span>
             <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-xs">Toggle</span>
           </div>
@@ -1982,11 +1996,11 @@
             <thead>
               <tr class="bg-slate-800 text-white text-xs uppercase font-black tracking-wider">
                 <th class="py-2.5 px-3.5 whitespace-nowrap">Discipline</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-A (Comp / Rem)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch A (Cls / Opn)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch B (Cls / Opn)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch C (Cls / Opn)</th>
-                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-B (Comp / Rem)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-A (Comp / Total)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch A (Cls / Total)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch B (Cls / Total)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">Punch C (Cls / Total)</th>
+                <th class="py-2.5 px-3 text-center whitespace-nowrap">ITR-B (Comp / Total)</th>
                 <th class="py-2.5 px-3 text-center whitespace-nowrap">Overall</th>
               </tr>
             </thead>
