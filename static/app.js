@@ -870,7 +870,13 @@
         ? "bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-200"
         : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200";
 
+    const closedStatus = allCriteria && allCriteria.source === "checksheet" ? "Completed" : "Closed";
+    const closedCriteria = Object.assign({}, allCriteria, {
+      status: closedStatus,
+      title: `${allCriteria.title || "Detail"} (${closedStatus})`,
+    });
     const allJson = esc(JSON.stringify(allCriteria));
+    const closedJson = esc(JSON.stringify(closedCriteria));
     const openJson = esc(JSON.stringify(openCriteria));
 
     return `
@@ -881,8 +887,13 @@
           title="Click to view all ${bucket.total.toLocaleString()} items"
         >
           <div class="flex items-center justify-between gap-2 whitespace-nowrap">
-            <span class="font-mono text-xs sm:text-sm">
-              <strong class="text-slate-900 font-black">${bucket.closed.toLocaleString()}</strong><span class="text-slate-400 font-semibold">/${bucket.total.toLocaleString()}</span>
+            <span class="font-mono text-xs sm:text-sm inline-flex items-center gap-0.5">
+              <button
+                type="button"
+                onclick="event.stopPropagation(); openDetailTab(${closedJson})"
+                class="px-1 py-0.2 rounded text-emerald-700 hover:bg-emerald-100 font-black transition-colors cursor-pointer"
+                title="Click to inspect ${bucket.closed.toLocaleString()} ${closedStatus.toLowerCase()} items"
+              >${bucket.closed.toLocaleString()}</button><span class="text-slate-400 font-semibold">/${bucket.total.toLocaleString()}</span>
             </span>
             <span class="px-2 py-0.5 rounded-md text-xs font-black border ${pctBadgeClass}">
               ${bucket.pct}%
@@ -1826,7 +1837,8 @@
   // Hidden automatically if user selected a single Discipline!
   // =========================================================================
   function computeDisciplineBreakdown(opts = {}) {
-    const sys = opts.system || "ALL";
+    const sysRaw = (opts.system || "ALL").trim();
+    const sysQ = sysRaw === "ALL" || !sysRaw ? "ALL" : sysRaw.toUpperCase();
     const sub = opts.subSystem || "ALL";
     const subSet = opts.subSet || null; // optional Set of SubSystems matching filtered records
     const plSource = opts.plRows || state.data.punchlist.rows;
@@ -1857,7 +1869,10 @@
       const sysNo = plPool[r[0]] || "";
       const subNo = plPool[r[1]] || "";
       if (!opts.plRows) {
-        if (sys !== "ALL" && sysNo !== sys && inferSystemFromSub(subNo) !== sys) continue;
+        if (sysQ !== "ALL") {
+          const rowSys = (sysNo || inferSystemFromSub(subNo)).toUpperCase();
+          if (rowSys !== sysQ && !rowSys.includes(sysQ)) continue;
+        }
         if (sub !== "ALL" && subNo !== sub) continue;
         if (subSet && !subSet.has(subNo)) continue;
       }
@@ -1874,7 +1889,10 @@
       const r = csSource[i];
       const subNo = csPool[r[1]] || "";
       if (!opts.csRows) {
-        if (sys !== "ALL" && inferSystemFromSub(subNo) !== sys) continue;
+        if (sysQ !== "ALL") {
+          const rowSys = inferSystemFromSub(subNo).toUpperCase();
+          if (rowSys !== sysQ && !rowSys.includes(sysQ)) continue;
+        }
         if (sub !== "ALL" && subNo !== sub) continue;
         if (subSet && !subSet.has(subNo)) continue;
       }
@@ -2092,56 +2110,45 @@
     return s;
   }
 
-  function buildPunchlistTabDisciplineSummary(filteredPl) {
+  function buildPunchlistTabDisciplineSummary() {
     const f = state.filters.punchlist;
-    if (f.discipline && f.discipline !== "ALL") return "";
-    const isPlFiltered = filteredPl.length !== state.data.punchlist.rows.length;
-    const subSet = f.subSystem === "ALL" && isPlFiltered
-      ? getFilteredSubsetSet(filteredPl, state.data.punchlist.pool, 1)
-      : null;
-    const scopeLabel = f.subSystem !== "ALL"
-      ? `SubSystem: ${f.subSystem}`
-      : f.system && f.system !== "ALL"
-      ? `System: ${f.system}${subSet ? ` (${subSet.size} SubSystems)` : ""}`
-      : isPlFiltered
-      ? `Filtered Scope (${subSet.size} SubSystems)`
+    const sys = f.system && f.system !== "ALL" ? f.system : "ALL";
+    const sub = f.subSystem && f.subSystem !== "ALL" ? f.subSystem : "ALL";
+    const scopeLabel = sub !== "ALL"
+      ? `SubSystem: ${sub}`
+      : sys !== "ALL"
+      ? `System: ${sys}`
       : "All Disciplines & SubSystems";
     return renderDisciplineSummaryStrip({
       context: "punchlist",
-      selectedDiscipline: f.discipline,
+      selectedDiscipline: "ALL",
       activeDiscipline: f.discipline || "ALL",
-      activeGate: f.category !== "ALL" ? `PUNCH-${f.category}` : "ALL",
+      activeGate: f.category && f.category !== "ALL" ? `PUNCH-${f.category}` : "ALL",
       activeStatus: f.status || "ALL",
-      subSystem: f.subSystem,
-      plRows: filteredPl,
-      subSet,
+      system: sys,
+      subSystem: sub,
       scopeLabel,
     });
   }
 
-  function buildChecksheetTabDisciplineSummary(filteredCs) {
+  function buildChecksheetTabDisciplineSummary() {
     const f = state.filters.checksheet;
-    if (f.discipline && f.discipline !== "ALL") return "";
-    const isCsFiltered = filteredCs.length !== state.data.checksheet.rows.length;
-    const subSet = f.subSystem === "ALL" && isCsFiltered
-      ? getFilteredSubsetSet(filteredCs, state.data.checksheet.pool, 1)
-      : null;
-    const scopeLabel = f.subSystem !== "ALL"
-      ? `SubSystem: ${f.subSystem}`
-      : f.system && f.system !== "ALL"
-      ? `System: ${f.system}${subSet ? ` (${subSet.size} SubSystems)` : ""}`
-      : isCsFiltered
-      ? `Filtered Scope (${subSet.size} SubSystems)`
+    const sys = f.system && f.system !== "ALL" ? f.system : "ALL";
+    const sub = f.subSystem && f.subSystem !== "ALL" ? f.subSystem : "ALL";
+    const scopeLabel = sub !== "ALL"
+      ? `SubSystem: ${sub}`
+      : sys !== "ALL"
+      ? `System: ${sys}`
       : "All Disciplines & SubSystems";
+    const normStatus = f.status === "Completed" ? "Closed" : f.status === "Remaining" ? "Open" : "ALL";
     return renderDisciplineSummaryStrip({
       context: "checksheet",
-      selectedDiscipline: f.discipline,
+      selectedDiscipline: "ALL",
       activeDiscipline: f.discipline || "ALL",
-      activeGate: f.checksheetType !== "ALL" ? f.checksheetType : "ALL",
-      activeStatus: f.status || "ALL",
-      subSystem: f.subSystem,
-      csRows: filteredCs,
-      subSet,
+      activeGate: f.itrGroup && f.itrGroup !== "ALL" ? f.itrGroup : "ALL",
+      activeStatus: normStatus,
+      system: sys,
+      subSystem: sub,
       scopeLabel,
     });
   }
@@ -3136,65 +3143,171 @@
     }, 60);
   };
 
-  window.filterGateDetailFromSummary = function (tabId, disc, statusPart) {
+  window.filterGateDetailFromSummary = function (tabId, disc, gateKey, statusPart) {
     const tab = state.detailTabs.find((t) => t.id === tabId);
     if (!tab) return;
     if (!tab.localFilters) tab.localFilters = {};
-    const isPl = tab.source === "punchlist";
+    const c = tab.criteria;
 
-    const curDisc = tab.localFilters.discipline || "ALL";
-    const targetStatus = statusPart === "Closed" ? (isPl ? "Closed" : "Completed") : statusPart === "Open" ? (isPl ? "Open" : "Remaining") : "ALL";
+    // Determine target source & gate if user clicked a specific gate column
+    let nextSource = tab.source;
+    let nextCat = c.category || "ALL";
+    let nextItr = c.itrGroup || "ALL";
+    if (gateKey && gateKey.startsWith("PUNCH-")) {
+      nextSource = "punchlist";
+      nextCat = gateKey.replace("PUNCH-", "");
+      nextItr = "ALL";
+    } else if (gateKey === "ITR-A" || gateKey === "ITR-B") {
+      nextSource = "checksheet";
+      nextItr = gateKey;
+      nextCat = "ALL";
+    }
 
-    if (curDisc === disc && tab.localFilters.status === targetStatus) {
+    const isPl = nextSource === "punchlist";
+    const curDisc = tab.localFilters.discipline || c.discipline || "ALL";
+    const curGate = tab.source === "punchlist"
+      ? (c.category && c.category !== "ALL" ? `PUNCH-${c.category}` : "ALL")
+      : (c.itrGroup && c.itrGroup !== "ALL" ? c.itrGroup : "ALL");
+    const targetStatus = statusPart === "Closed"
+      ? (isPl ? "Closed" : "Completed")
+      : statusPart === "Open"
+      ? (isPl ? "Open" : "Remaining")
+      : "ALL";
+
+    if (disc === "ALL" && gateKey === "ALL" && statusPart === "ALL") {
+      c.discipline = "ALL";
+      tab.localFilters.discipline = "ALL";
+      tab.localFilters.status = "ALL";
+      showToast("Reset filters to all records", "info");
+    } else if (curDisc === disc && (gateKey === "ALL" || curGate === gateKey) && tab.localFilters.status === targetStatus) {
+      c.discipline = "ALL";
       tab.localFilters.discipline = "ALL";
       tab.localFilters.status = "ALL";
       showToast("Reset filters to all records", "info");
     } else {
+      tab.source = nextSource;
+      c.source = nextSource;
+      c.category = nextCat;
+      c.itrGroup = nextItr;
+      c.discipline = "ALL";
       tab.localFilters.discipline = disc || "ALL";
       tab.localFilters.status = targetStatus;
-      showToast(`Filtered: ${disc !== "ALL" ? disc : "All Disc"}${targetStatus !== "ALL" ? ` • ${targetStatus}` : ""}`, "info");
+      const label = `${disc !== "ALL" ? disc : "All Disc"} • ${gateKey !== "ALL" ? gateKey : curGate}${targetStatus !== "ALL" ? ` • ${targetStatus}` : ""}`;
+      showToast(`Filtered detail: ${label}`, "info");
     }
     tab.limit = BATCH_SIZE;
     renderTabBar();
     renderTabContent();
-  };
-
-  window.filterPunchlistTabFromSummary = function (disc, gateKey, statusPart) {
-    if (disc && disc !== "ALL") {
-      state.filters.punchlist.discipline = disc;
-    }
-    if (gateKey && gateKey.startsWith("PUNCH-")) {
-      state.filters.punchlist.category = gateKey.replace("PUNCH-", "");
-    }
-    if (statusPart && statusPart !== "ALL") {
-      state.filters.punchlist.status = statusPart;
-    }
-    state.pagination.punchlist.page = 1;
-    renderPunchlistTab();
-    showToast(`Punchlist filtered by Discipline summary`, "info");
     setTimeout(() => {
-      const el = document.getElementById("punchlist-table-container");
+      const el = document.getElementById(`detail-table-card-${tabId}`);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 60);
   };
 
-  window.filterChecksheetTabFromSummary = function (disc, gateKey, statusPart) {
-    if (disc && disc !== "ALL") {
-      state.filters.checksheet.discipline = disc;
-    }
+  window.resetPunchlistSummaryFilter = function () {
+    const f = state.filters.punchlist;
+    f.discipline = "ALL";
+    f.category = "ALL";
+    f.status = "ALL";
+    f.page = 1;
+    renderTabBar();
+    renderTabContent();
+    showToast("Reset Punchlist summary filters", "info");
+  };
+
+  window.resetChecksheetSummaryFilter = function () {
+    const f = state.filters.checksheet;
+    f.discipline = "ALL";
+    f.itrGroup = "ALL";
+    f.status = "ALL";
+    f.page = 1;
+    renderTabBar();
+    renderTabContent();
+    showToast("Reset Checksheet summary filters", "info");
+  };
+
+  window.filterPunchlistTabFromSummary = function (disc, gateKey, statusPart, isCrossSwitch) {
+    // If user clicked an ITR-A or ITR-B column while on Punchlist tab, switch to Checksheet tab!
     if (gateKey === "ITR-A" || gateKey === "ITR-B") {
-      state.filters.checksheet.checksheetType = gateKey;
+      const plF = state.filters.punchlist;
+      state.filters.checksheet.system = plF.system || "ALL";
+      state.filters.checksheet.subSystem = plF.subSystem || "ALL";
+      state.activeTab = "checksheet";
+      window.filterChecksheetTabFromSummary(disc, gateKey, statusPart, true);
+      return;
     }
-    if (statusPart === "Closed") {
-      state.filters.checksheet.status = "Completed";
-    } else if (statusPart === "Open") {
-      state.filters.checksheet.status = "Remaining";
+
+    const f = state.filters.punchlist;
+    const targetDisc = disc || "ALL";
+    const targetCat = gateKey && gateKey.startsWith("PUNCH-") ? gateKey.replace("PUNCH-", "") : "ALL";
+    const targetStatus = statusPart === "Closed" ? "Closed" : statusPart === "Open" ? "Open" : "ALL";
+
+    if (!isCrossSwitch && targetDisc === "ALL" && targetCat === "ALL" && targetStatus === "ALL") {
+      f.discipline = "ALL";
+      f.category = "ALL";
+      f.status = "ALL";
+      showToast("Reset Punchlist filters to all records", "info");
+    } else if (!isCrossSwitch && f.discipline === targetDisc && f.category === targetCat && f.status === targetStatus) {
+      f.discipline = "ALL";
+      f.category = "ALL";
+      f.status = "ALL";
+      showToast("Reset Punchlist filters to all records", "info");
+    } else {
+      f.discipline = targetDisc;
+      f.category = targetCat;
+      f.status = targetStatus;
+      const label = `${targetDisc !== "ALL" ? targetDisc : "All Disc"} • ${targetCat !== "ALL" ? `Punch Cat ${targetCat}` : "All Categories"}${targetStatus !== "ALL" ? ` • ${targetStatus}` : ""}`;
+      showToast(`Filtered Punchlist: ${label}`, "info");
     }
-    state.pagination.checksheet.page = 1;
-    renderChecksheetTab();
-    showToast(`Checksheets filtered by Discipline summary`, "info");
+
+    f.page = 1;
+    renderTabBar();
+    renderTabContent();
     setTimeout(() => {
-      const el = document.getElementById("checksheet-table-container");
+      const el = document.getElementById("punchlist-table-card") || document.getElementById("punchlist-scroll-container");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
+  window.filterChecksheetTabFromSummary = function (disc, gateKey, statusPart, isCrossSwitch) {
+    // If user clicked a PUNCH-A/B/C column while on Checksheet tab, switch to Punchlist tab!
+    if (gateKey && gateKey.startsWith("PUNCH-")) {
+      const csF = state.filters.checksheet;
+      state.filters.punchlist.system = csF.system || "ALL";
+      state.filters.punchlist.subSystem = csF.subSystem || "ALL";
+      state.activeTab = "punchlist";
+      window.filterPunchlistTabFromSummary(disc, gateKey, statusPart, true);
+      return;
+    }
+
+    const f = state.filters.checksheet;
+    const targetDisc = disc || "ALL";
+    const targetItr = gateKey === "ITR-A" || gateKey === "ITR-B" ? gateKey : "ALL";
+    const targetStatus = statusPart === "Closed" ? "Completed" : statusPart === "Open" ? "Remaining" : "ALL";
+
+    if (!isCrossSwitch && targetDisc === "ALL" && targetItr === "ALL" && targetStatus === "ALL") {
+      f.discipline = "ALL";
+      f.itrGroup = "ALL";
+      f.status = "ALL";
+      showToast("Reset Checksheet filters to all records", "info");
+    } else if (!isCrossSwitch && f.discipline === targetDisc && f.itrGroup === targetItr && f.status === targetStatus) {
+      f.discipline = "ALL";
+      f.itrGroup = "ALL";
+      f.status = "ALL";
+      showToast("Reset Checksheet filters to all records", "info");
+    } else {
+      f.discipline = targetDisc;
+      f.itrGroup = targetItr;
+      f.status = targetStatus;
+      const label = `${targetDisc !== "ALL" ? targetDisc : "All Disc"} • ${targetItr !== "ALL" ? targetItr : "All ITRs"}${targetStatus !== "ALL" ? ` • ${targetStatus}` : ""}`;
+      showToast(`Filtered Checksheets: ${label}`, "info");
+    }
+
+    f.page = 1;
+    renderTabBar();
+    renderTabContent();
+    setTimeout(() => {
+      const el = document.getElementById("checksheet-table-card") || document.getElementById("checksheet-scroll-container");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 60);
   };
@@ -3203,7 +3316,7 @@
     if (ctx === "subsystem") {
       filterSubDetailFromSummary(tabId, disc, gateKey, statusPart);
     } else if (ctx === "gateDetail") {
-      filterGateDetailFromSummary(tabId, disc, statusPart);
+      filterGateDetailFromSummary(tabId, disc, gateKey, statusPart);
     } else if (ctx === "punchlist") {
       filterPunchlistTabFromSummary(disc, gateKey, statusPart);
     } else if (ctx === "checksheet") {
@@ -3868,27 +3981,21 @@
         </div>
       </div>
 
-      <!-- 1B. Discipline Summary (Shown unless filtering a single Discipline) -->
-      ${
-        c.discipline === "ALL"
-          ? renderDisciplineSummaryStrip({
-              context: "gateDetail",
-              tabId: tab.id,
-              selectedDiscipline: c.discipline,
-              activeDiscipline: tab.localFilters.discipline || "ALL",
-              activeGate: isPl ? (c.category !== "ALL" ? `PUNCH-${c.category}` : "ALL") : c.itrGroup,
-              activeStatus: tab.localFilters.status || "ALL",
-              system: c.system,
-              subSystem: c.subSystem,
-              plRows: isPl ? filtered : undefined,
-              csRows: !isPl ? filtered : undefined,
-              scopeLabel: tab.title,
-            })
-          : ""
-      }
+      <!-- 1B. Discipline Summary -->
+      ${renderDisciplineSummaryStrip({
+        context: "gateDetail",
+        tabId: tab.id,
+        selectedDiscipline: "ALL",
+        activeDiscipline: tab.localFilters.discipline && tab.localFilters.discipline !== "ALL" ? tab.localFilters.discipline : (c.discipline || "ALL"),
+        activeGate: isPl ? (c.category !== "ALL" ? `PUNCH-${c.category}` : "ALL") : (c.itrGroup || "ALL"),
+        activeStatus: activeSt === "Completed" ? "Closed" : activeSt === "Remaining" ? "Open" : activeSt,
+        system: tab.localFilters.system && tab.localFilters.system !== "ALL" ? tab.localFilters.system : c.system,
+        subSystem: c.subSystem,
+        scopeLabel: c.subSystem !== "ALL" ? `SubSystem: ${c.subSystem}` : c.system !== "ALL" ? `System: ${c.system}` : "All Disciplines & SubSystems",
+      })}
 
       <!-- 2. Detail Continuous List Table -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div id="detail-table-card-${esc(tab.id)}" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
@@ -4597,15 +4704,29 @@
       </div>
 
       <!-- 3. High-Performance Paginated Data Table with Auto-fit Columns & Fixed Header -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div id="punchlist-table-card" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
               Detailed Punchlist Registry
             </h4>
             <span id="pl-count-badge" class="text-xs text-slate-500 font-medium">
               (${pageRows.length >= filtered.length ? `Showing all ${filtered.length.toLocaleString()} items` : `Showing ${pageRows.length.toLocaleString()} of ${filtered.length.toLocaleString()} items — Scroll down for more`})
             </span>
+            ${
+              f.discipline !== "ALL" || f.category !== "ALL" || f.status !== "ALL"
+                ? `<div class="inline-flex items-center gap-1.5 flex-wrap ml-1">
+                    ${f.discipline !== "ALL" ? `<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-bold">Discipline: ${esc(f.discipline)}</span>` : ""}
+                    ${f.category !== "ALL" ? `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">Punch Cat ${esc(f.category)}</span>` : ""}
+                    ${f.status !== "ALL" ? `<span class="px-2 py-0.5 rounded-full ${f.status === "Closed" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"} text-[11px] font-bold">Status: ${esc(f.status)}</span>` : ""}
+                    <button
+                      type="button"
+                      onclick="resetPunchlistSummaryFilter()"
+                      class="px-2 py-0.5 rounded-full bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
+                    ><i class="fas fa-rotate-left mr-1"></i>Reset Filter</button>
+                  </div>`
+                : ""
+            }
           </div>
 
           <!-- Toolbar: Auto-fit, Reset & Load All (Continuous Scroll) -->
@@ -5473,15 +5594,29 @@
       </div>
 
       <!-- 3. Paginated Data Table with Resizable Columns & Fixed Header -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div id="checksheet-table-card" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <h4 class="font-bold text-xs sm:text-sm text-slate-800">
               Detailed Checksheet Registry
             </h4>
             <span id="cs-count-badge" class="text-xs text-slate-500 font-medium">
               (${pageRows.length >= filtered.length ? `Showing all ${filtered.length.toLocaleString()} items` : `Showing ${pageRows.length.toLocaleString()} of ${filtered.length.toLocaleString()} items — Scroll down for more`})
             </span>
+            ${
+              f.discipline !== "ALL" || f.itrGroup !== "ALL" || f.status !== "ALL"
+                ? `<div class="inline-flex items-center gap-1.5 flex-wrap ml-1">
+                    ${f.discipline !== "ALL" ? `<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-bold">Discipline: ${esc(f.discipline)}</span>` : ""}
+                    ${f.itrGroup !== "ALL" ? `<span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">Gate: ${esc(f.itrGroup)}</span>` : ""}
+                    ${f.status !== "ALL" ? `<span class="px-2 py-0.5 rounded-full ${f.status === "Completed" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"} text-[11px] font-bold">Status: ${esc(f.status)}</span>` : ""}
+                    <button
+                      type="button"
+                      onclick="resetChecksheetSummaryFilter()"
+                      class="px-2 py-0.5 rounded-full bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
+                    ><i class="fas fa-rotate-left mr-1"></i>Reset Filter</button>
+                  </div>`
+                : ""
+            }
           </div>
 
           <!-- Toolbar: Reset Columns & Load All (Continuous Scroll) -->
